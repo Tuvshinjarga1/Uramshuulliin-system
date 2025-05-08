@@ -70,11 +70,7 @@ export default function AccountantDashboardPage() {
 
   const handleApproveIncentive = async (incentiveId: string) => {
     setStatusUpdateLoading(incentiveId);
-    const result = await updateIncentiveStatus(
-      incentiveId,
-      "approved",
-      "Нягтлан бодогчийн зөвшөөрсөн"
-    );
+    const result = await updateIncentiveStatus(incentiveId, "approved");
     if (result.success) {
       setIncentives(
         incentives.map((inc) =>
@@ -87,11 +83,7 @@ export default function AccountantDashboardPage() {
 
   const handleRejectIncentive = async (incentiveId: string) => {
     setStatusUpdateLoading(incentiveId);
-    const result = await updateIncentiveStatus(
-      incentiveId,
-      "rejected",
-      "Нягтлан бодогчийн цуцалсан"
-    );
+    const result = await updateIncentiveStatus(incentiveId, "rejected");
     if (result.success) {
       setIncentives(
         incentives.map((inc) =>
