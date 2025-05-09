@@ -47,20 +47,26 @@ export const getTask = async (taskId: string) => {
 // Хэрэглэгчийн даалгаврууд авах
 export const getUserTasks = async (userId: string) => {
   try {
-    const q = query(
-      collection(db, "tasks"),
-      where("assignedTo", "==", userId),
-      orderBy("createdAt", "desc")
-    );
+    console.log("Хэрэглэгчийн ID:", userId);
+
+    const tasksRef = collection(db, "tasks");
+    const q = query(tasksRef, where("assignedTo", "==", userId));
 
     const querySnapshot = await getDocs(q);
-    const tasks = querySnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    console.log("Олдсон даалгаврын тоо:", querySnapshot.size);
+
+    const tasks = querySnapshot.docs.map((doc) => {
+      const data = doc.data();
+      console.log("Даалгаврын дэлгэрэнгүй:", { id: doc.id, ...data });
+      return {
+        id: doc.id,
+        ...data,
+      };
+    });
 
     return { success: true, tasks };
   } catch (error: any) {
+    console.error("Даалгавар авахад алдаа гарлаа:", error);
     return { success: false, error: error.message };
   }
 };
@@ -103,11 +109,18 @@ export const updateTaskStatus = async (
   comment: string = ""
 ) => {
   try {
-    await updateDoc(doc(db, "tasks", taskId), {
+    const updateData: any = {
       status,
       statusComment: comment,
       updatedAt: Timestamp.now(),
-    });
+    };
+
+    // Даалгаврыг дууссан гэж тэмдэглэх үед дууссан огноог хадгалах
+    if (status === "completed") {
+      updateData.completedAt = Timestamp.now();
+    }
+
+    await updateDoc(doc(db, "tasks", taskId), updateData);
 
     return { success: true };
   } catch (error: any) {

@@ -85,6 +85,10 @@ export default function ReportsPage() {
     // PDF үүсгэх
     const doc = new jsPDF();
 
+    // Монгол фонт нэмэх (шаардлагатай бол)
+    // Эсвэл Юникод дэмждэг стандарт фонт ашиглах
+    doc.setFont("helvetica", "normal");
+
     // Тайлан гарчиг
     doc.setFontSize(18);
     doc.text(`Урамшууллын тайлан: ${selectedYear}-${selectedMonth}`, 14, 22);
@@ -107,14 +111,32 @@ export default function ReportsPage() {
       ];
     });
 
-    // Хүснэгт үүсгэх
+    // Хүснэгт үүсгэх - сайжруулсан форматтай
     autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
       startY: 45,
       theme: "grid",
-      headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+      headStyles: {
+        fillColor: [41, 128, 185],
+        textColor: 255,
+        fontStyle: "bold",
+        fontSize: 11,
+        halign: "center",
+      },
       alternateRowStyles: { fillColor: [245, 245, 245] },
+      styles: {
+        font: "helvetica",
+        fontSize: 10,
+        cellPadding: 5,
+      },
+      columnStyles: {
+        0: { halign: "center", cellWidth: 20 },
+        1: { cellWidth: 60 },
+        2: { cellWidth: 70 },
+        3: { halign: "center", cellWidth: 40 },
+        4: { halign: "right", cellWidth: 40 },
+      },
     });
 
     // Нийт дүн
@@ -123,10 +145,21 @@ export default function ReportsPage() {
       0
     );
     const finalY = (doc as any).lastAutoTable.finalY + 10;
+
+    doc.setFont("helvetica", "bold");
     doc.text(
       `Нийт урамшууллын дүн: ${totalAmount.toLocaleString()} ₮`,
       14,
       finalY
+    );
+
+    // Нэмэлт мэдээлэл
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text(
+      `* Энэхүү тайлан нь системээс автоматаар үүсгэгдсэн болно.`,
+      14,
+      finalY + 10
     );
 
     // PDF татаж авах

@@ -88,20 +88,44 @@ export default function NewTaskPage() {
     setSubmitLoading(true);
     setError(null);
 
-    try {
-      // Даалгавар үүсгэх
-      const taskData = {
-        ...data,
-        assignedBy: user.uid,
-        dueDate: new Date(data.dueDate),
-        incentiveAmount: Number(data.incentiveAmount),
-      };
+    if (!data.assignedTo) {
+      setError("Даалгавар хариуцагчийг сонгоно уу");
+      setSubmitLoading(false);
+      return;
+    }
 
-      const result = await createTask(taskData);
+    // Make sure incentiveAmount is a number
+    const incentiveAmount = parseFloat(data.incentiveAmount as any);
+
+    // Convert dueDate to timestamp
+    const dueDate = new Date(data.dueDate);
+
+    // Log all field values before submission
+    console.log("Даалгавар үүсгэх дэлгэрэнгүй:", {
+      ...data,
+      incentiveAmount: incentiveAmount,
+      dueDate: dueDate,
+    });
+
+    try {
+      const result = await createTask({
+        ...data,
+        incentiveAmount: incentiveAmount,
+        dueDate: dueDate,
+        createdBy: user.uid,
+      });
 
       if (result.success) {
+        setError(null);
+        console.log("Даалгавар амжилттай үүсгэлээ, ID:", result.id);
+
+        // Reset form
         reset();
-        router.push("/admin/tasks");
+
+        // Redirect after 2 seconds
+        setTimeout(() => {
+          router.push(`/admin/tasks/${result.id}`);
+        }, 2000);
       } else {
         setError(result.error || "Даалгавар үүсгэхэд алдаа гарлаа");
       }

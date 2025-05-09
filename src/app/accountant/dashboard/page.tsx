@@ -239,7 +239,13 @@ export default function AccountantDashboardPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {incentives.map((incentive) => (
-                      <tr key={incentive.id} className="hover:bg-gray-50">
+                      <tr
+                        key={incentive.id}
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() =>
+                          router.push(`/accountant/incentives/${incentive.id}`)
+                        }
+                      >
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {users.find((u) => u.uid === incentive.userId)
                             ?.displayName || "Олдсонгүй"}
@@ -274,23 +280,13 @@ export default function AccountantDashboardPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button
-                            onClick={() =>
-                              router.push(
-                                `/accountant/incentives/${incentive.id}`
-                              )
-                            }
-                            className="text-blue-600 hover:text-blue-900 mr-3"
-                          >
-                            Харах
-                          </button>
-
                           {incentive.status === "pending" && (
                             <>
                               <button
-                                onClick={() =>
-                                  handleApproveIncentive(incentive.id)
-                                }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleApproveIncentive(incentive.id);
+                                }}
                                 disabled={statusUpdateLoading === incentive.id}
                                 className="text-green-600 hover:text-green-900 mr-3"
                               >
@@ -299,9 +295,10 @@ export default function AccountantDashboardPage() {
                                   : "Зөвшөөрөх"}
                               </button>
                               <button
-                                onClick={() =>
-                                  handleRejectIncentive(incentive.id)
-                                }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRejectIncentive(incentive.id);
+                                }}
                                 disabled={statusUpdateLoading === incentive.id}
                                 className="text-red-600 hover:text-red-900"
                               >
