@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { JSXElementConstructor, Key, ReactElement, ReactNode, ReactPortal, useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -220,12 +220,15 @@ export default function TaskDetailPage() {
                 )}
               </div>
 
-              {task.statusComment && (
-                <div className="mb-6">
-                  <p className="text-sm text-gray-500">Тайлбар</p>
-                  <p className="p-2 bg-gray-50 rounded">{task.statusComment}</p>
-                </div>
-              )}
+{task.requirements ? (
+  <ul className="list-disc list-inside text-gray-800 text-sm">
+    {task.requirements.split('\n').map((req: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined, index: Key | null | undefined) => (
+      <li key={index}>{req}</li>
+    ))}
+  </ul>
+) : (
+  <p className="text-sm text-gray-500">Шаардлага оруулаагүй байна.</p>
+)}
 
               <div className="flex space-x-2">
                 <button

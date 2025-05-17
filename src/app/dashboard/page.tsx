@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { JSXElementConstructor, Key, ReactElement, ReactNode, ReactPortal, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -476,12 +476,20 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="mb-4">
-                <h4 className="font-medium mb-2">Дэлгэрэнгүй тайлбар:</h4>
-                <p className="text-gray-700 whitespace-pre-wrap">
-                  {selectedTask.description}
-                </p>
-              </div>
+             <div className="mb-4">
+  <h4 className="font-medium mb-2">Даалгаврын шаардлагууд:</h4>
+ {selectedTask.requirements ? (
+  <ul className="list-disc list-inside text-gray-700">
+    {selectedTask.requirements.split('\n').map((req: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined, index: Key | null | undefined) => (
+      <li key={index}>{req}</li>
+    ))}
+  </ul>
+) : (
+  <p className="text-gray-500">Шаардлага оруулаагүй байна.</p>
+)}
+
+</div>
+
 
               <div className="flex justify-end space-x-2 mt-6">
                 {selectedTask.status === "pending" && (

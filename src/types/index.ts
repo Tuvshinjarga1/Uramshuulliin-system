@@ -10,6 +10,7 @@ export interface User {
 }
 
 export interface Task {
+  requirements: any;
   id: string;
   title: string;
   description: string;
