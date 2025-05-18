@@ -203,25 +203,7 @@ const taskTotalPages = Math.ceil(filteredTasks.length / taskItemsPerPage);
     </button>
   </div>
 </div>
-<div className="flex justify-center items-center mt-4 space-x-2">
-  <button
-    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-    disabled={currentPage === 1}
-    className="px-3 py-1 border rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50"
-  >
-    Өмнөх
-  </button>
-  <span className="text-sm">
-    Хуудас {currentPage} - {totalPages}
-  </span>
-  <button
-    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-    disabled={currentPage === totalPages}
-    className="px-3 py-1 border rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50"
-  >
-    Дараах
-  </button>
-</div>
+
 
 
             <div className="overflow-x-auto">
@@ -285,6 +267,25 @@ const taskTotalPages = Math.ceil(filteredTasks.length / taskItemsPerPage);
               </table>
             </div>
           </div>
+          <div className="flex justify-center items-center mt-4 space-x-2">
+  <button
+    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+    disabled={currentPage === 1}
+    className="px-3 py-1 border rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50"
+  >
+    Өмнөх
+  </button>
+  <span className="text-sm">
+    Хуудас {currentPage} - {totalPages}
+  </span>
+  <button
+    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+    disabled={currentPage === totalPages}
+    className="px-3 py-1 border rounded bg-gray-200 hover:bg-gray-300 disabled:opacity-50"
+  >
+    Дараах
+  </button>
+</div>
 
           {/* Даалгаврын хэсэг */}
           <div className="mb-8">

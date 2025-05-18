@@ -195,7 +195,7 @@ export default function TaskDetailPage() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="grid grid-cols-3 gap-4 mb-6">
                 <div>
                   <p className="text-sm text-gray-500">Дуусах хугацаа</p>
                   <p className="font-medium">{formatDate(task.dueDate)}</p>
@@ -220,17 +220,43 @@ export default function TaskDetailPage() {
                 )}
               </div>
 
-{task.requirements ? (
-  <ul className="list-disc list-inside text-gray-800 text-sm">
-    {task.requirements.split('\n').map((req: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined, index: Key | null | undefined) => (
-      <li key={index}>{req}</li>
-    ))}
-  </ul>
-) : (
-  <p className="text-sm text-gray-500">Шаардлага оруулаагүй байна.</p>
-)}
+              {task.requirements ? (
+                (() => {
+                  let requirementsArray = [];
+                  try {
+                    requirementsArray = JSON.parse(task.requirements);
+                  } catch (error) {
+                    requirementsArray = [];
+                  }
 
-              <div className="flex space-x-2">
+                  return requirementsArray.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full bg-white shadow rounded-lg">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Тавигдах шаардлага</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Үнэлгээ</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {requirementsArray.map((req: any, index: number) => (
+                            <tr key={req.id || index} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{req.field1}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{req.field2}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">Шаардлага оруулаагүй байна.</p>
+                  );
+                })()
+              ) : (
+                <p className="text-sm text-gray-500">Шаардлага оруулаагүй байна.</p>
+              )}
+
+              <div className="flex mt-6 space-x-2">
                 <button
                   onClick={() => router.push(`/admin/tasks/${taskId}/edit`)}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700"

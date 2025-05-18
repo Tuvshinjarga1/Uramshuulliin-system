@@ -476,19 +476,44 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-             <div className="mb-4">
-  <h4 className="font-medium mb-2">Даалгаврын шаардлагууд:</h4>
- {selectedTask.requirements ? (
-  <ul className="list-disc list-inside text-gray-700">
-    {selectedTask.requirements.split('\n').map((req: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined, index: Key | null | undefined) => (
-      <li key={index}>{req}</li>
-    ))}
-  </ul>
-) : (
-  <p className="text-gray-500">Шаардлага оруулаагүй байна.</p>
-)}
+              <div className="mb-4">
+                <h4 className="font-medium mb-2">Даалгаврын шаардлагууд:</h4>
+                  {selectedTask.requirements ? (
+                    (() => {
+                  let requirementsArray = [];
+                  try {
+                    requirementsArray = JSON.parse(selectedTask.requirements);
+                  } catch (error) {
+                    requirementsArray = [];
+                  }
 
-</div>
+                  return requirementsArray.length > 0 ? (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full bg-white shadow rounded-lg">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Тавигдах шаардлага</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Үнэлгээ</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {requirementsArray.map((req: any, index: number) => (
+                            <tr key={req.id || index} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{req.field1}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{req.field2}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">Шаардлага оруулаагүй байна.</p>
+                  );
+                })()
+                  ) : (
+                    <p className="text-gray-500">Шаардлага оруулаагүй байна.</p>
+                  )}
+              </div>
 
 
               <div className="flex justify-end space-x-2 mt-6">

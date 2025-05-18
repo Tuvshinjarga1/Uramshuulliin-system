@@ -7,8 +7,9 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, collection, getDocs } from "firebase/firestore";
 import { createTask } from "@/lib/tasks";
-import { User } from "@/types";
 import { logoutUser } from "@/lib/auth";
+import { FaPlus, FaTrash } from "react-icons/fa";
+import { User } from "@/types";
 
 interface TaskFormData {
   title: string;
@@ -16,7 +17,13 @@ interface TaskFormData {
   assignedTo: string;
   dueDate: string;
   incentiveAmount: number;
-  requirements: string;
+  requirements: string; // JSON string
+}
+
+interface RequirementItem {
+  id: number;
+  field1: string; // Requirement
+  field2: string; // Score or comment
 }
 
 export default function NewTaskPage() {
@@ -26,6 +33,9 @@ export default function NewTaskPage() {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [users, setUsers] = useState<User[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [inputs, setInputs] = useState<RequirementItem[]>([
+    { id: 1, field1: "", field2: "" },
+  ]);
 
   const {
     register,
@@ -33,51 +43,40 @@ export default function NewTaskPage() {
     formState: { errors },
     reset,
   } = useForm<TaskFormData>({
-   defaultValues: {
-  title: "",
-  description: "",
-  assignedTo: "",
-  dueDate: new Date().toISOString().split("T")[0],
-  incentiveAmount: 0,
-  requirements: "",
-},
+    defaultValues: {
+      title: "",
+      description: "",
+      assignedTo: "",
+      dueDate: new Date().toISOString().split("T")[0],
+      incentiveAmount: 0,
+      requirements: "",
+    },
   });
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        // Хэрэглэгчийн профайл авах
         const userDoc = await getDoc(doc(db, "users", currentUser.uid));
         if (userDoc.exists()) {
           const userData = userDoc.data();
-          // Зөвхөн админ хэрэглэгч нэвтрэх эрхтэй
           if (userData.role === "admin") {
             setUser({ uid: currentUser.uid, ...userData });
-
-            // Бүх хэрэглэгчдийн жагсаалт авах
             const usersSnapshot = await getDocs(collection(db, "users"));
             const usersData = usersSnapshot.docs.map((doc) => ({
               uid: doc.id,
               ...doc.data(),
             })) as User[];
-
-            // Зөвхөн ажилтнуудын жагсаалт шүүх
-            const employeesOnly = usersData.filter(
-              (u) => u.role === "employee"
-            );
+            const employeesOnly = usersData.filter((u) => u.role === "employee");
             setUsers(employeesOnly);
           } else {
-            // Админ биш хэрэглэгч
             await logoutUser();
             router.push("/login");
           }
         } else {
-          // Хэрэглэгчийн мэдээлэл олдсонгүй
           await logoutUser();
           router.push("/login");
         }
       } else {
-        // Нэвтрээгүй үед нэвтрэх хуудас руу шилжүүлэх
         router.push("/login");
       }
       setLoading(false);
@@ -85,6 +84,25 @@ export default function NewTaskPage() {
 
     return () => unsubscribe();
   }, [router]);
+
+  const handleAdd = () => {
+    setInputs((prev) => [
+      ...prev,
+      { id: Date.now(), field1: "", field2: "" },
+    ]);
+  };
+
+  const handleRemove = (id: number) => {
+    setInputs((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleChange = (id: number, field: "field1" | "field2", value: string) => {
+    setInputs((prev) =>
+      prev.map((input) =>
+        input.id === id ? { ...input, [field]: value } : input
+      )
+    );
+  };
 
   const onSubmit = async (data: TaskFormData) => {
     setSubmitLoading(true);
@@ -96,35 +114,27 @@ export default function NewTaskPage() {
       return;
     }
 
-    // Make sure incentiveAmount is a number
-    const incentiveAmount = parseFloat(data.incentiveAmount as any);
-
-    // Convert dueDate to timestamp
-    const dueDate = new Date(data.dueDate);
-
-    // Log all field values before submission
-    console.log("Даалгавар үүсгэх дэлгэрэнгүй:", {
-      ...data,
-      incentiveAmount: incentiveAmount,
-      dueDate: dueDate,
-    });
+    // Check at least one valid requirement
+    const filteredReqs = inputs.filter(i => i.field1.trim() !== "");
+    if (filteredReqs.length === 0) {
+      setError("Хамгийн багадаа нэг шаардлага оруулна уу");
+      setSubmitLoading(false);
+      return;
+    }
 
     try {
       const result = await createTask({
         ...data,
-        incentiveAmount: incentiveAmount,
-        dueDate: dueDate,
+        requirements: JSON.stringify(filteredReqs),
+        incentiveAmount: parseFloat(String(data.incentiveAmount)),
+        dueDate: new Date(data.dueDate),
         createdBy: user.uid,
       });
 
       if (result.success) {
         setError(null);
-        console.log("Даалгавар амжилттай үүсгэлээ, ID:", result.id);
-
-        // Reset form
         reset();
-
-        // Redirect after 2 seconds
+        setInputs([{ id: 1, field1: "", field2: "" }]);
         setTimeout(() => {
           router.push(`/admin/tasks/${result.id}`);
         }, 2000);
@@ -169,7 +179,7 @@ export default function NewTaskPage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="bg-white shadow rounded-lg p-6">
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
@@ -179,135 +189,101 @@ export default function NewTaskPage() {
 
           <form onSubmit={handleSubmit(onSubmit)}>
             <div className="mb-4">
-              <label
-                className="block text-sm font-medium text-gray-700 mb-1"
-                htmlFor="title"
-              >
-                Гарчиг
-              </label>
+              <label className="block mb-1 font-medium">Гарчиг</label>
               <input
-                id="title"
-                type="text"
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 {...register("title", { required: "Гарчиг оруулна уу" })}
+                className="w-full border rounded p-2"
               />
-              {errors.title && (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.title.message}
-                </p>
-              )}
+              {errors.title && <p className="text-red-500 text-sm">{errors.title.message}</p>}
             </div>
-<div className="mb-4">
-  <label htmlFor="requirements" className="block text-sm font-medium text-gray-700 mb-1">
-    Даалгаврын шаардлагууд
-  </label>
-  <textarea
-    id="requirements"
-    {...register("requirements", { required: "Шаардлагуудыг оруулна уу." })}
-    rows={4}
-    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-    placeholder={`Жишээ:\n- Хугацаандаа дуусгах\n- Чанартай тайлан ирүүлэх\n- Багаар ажиллах`}
-  />
-  {errors.requirements && (
-    <p className="text-sm text-red-500 mt-1">{errors.requirements.message}</p>
-  )}
-</div>
-
 
             <div className="mb-4">
-              <label
-                className="block text-sm font-medium text-gray-700 mb-1"
-                htmlFor="assignedTo"
-              >
-                Ажилтан
-              </label>
+              <label className="block mb-1 font-medium">Даалгаврын шаардлагууд</label>
+              <div className="space-y-2">
+                {inputs.map((input) => (
+                  <div key={input.id} className="flex gap-2 items-center">
+                    <input
+                      value={input.field1}
+                      onChange={(e) => handleChange(input.id, "field1", e.target.value)}
+                      placeholder="Шаардлага"
+                      className="border p-2 rounded w-1/2"
+                    />
+                    <input
+                      value={input.field2}
+                      onChange={(e) => handleChange(input.id, "field2", e.target.value)}
+                      placeholder="Оноо эсвэл Тайлбар"
+                      className="border p-2 rounded w-1/2"
+                    />
+                    <button type="button" onClick={handleAdd} className="text-green-600">
+                      <FaPlus />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(input.id)}
+                      className="text-red-600"
+                      disabled={inputs.length === 1}
+                    >
+                      <FaTrash />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label className="block mb-1 font-medium">Ажилтан</label>
               <select
-                id="assignedTo"
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 {...register("assignedTo", { required: "Ажилтан сонгоно уу" })}
+                className="w-full border rounded p-2"
               >
-                <option value="">Сонгоно уу</option>
-                {users.map((user) => (
-                  <option key={user.uid} value={user.uid}>
-                    {user.displayName} ({user.email})
+                <option value="">--Сонгоно уу--</option>
+                {users.map((u) => (
+                  <option key={u.uid} value={u.uid}>
+                    {u.displayName} ({u.email})
                   </option>
                 ))}
               </select>
               {errors.assignedTo && (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.assignedTo.message}
-                </p>
+                <p className="text-red-500 text-sm">{errors.assignedTo.message}</p>
               )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
-                <label
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                  htmlFor="dueDate"
-                >
-                  Дуусах хугацаа
-                </label>
+                <label className="block mb-1 font-medium">Дуусах хугацаа</label>
                 <input
-                  id="dueDate"
                   type="date"
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  {...register("dueDate", {
-                    required: "Дуусах хугацаа оруулна уу",
-                  })}
+                  {...register("dueDate", { required: "Дуусах хугацаа оруулна уу" })}
+                  className="w-full border rounded p-2"
                 />
-                {errors.dueDate && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {errors.dueDate.message}
-                  </p>
-                )}
               </div>
-
               <div>
-                <label
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                  htmlFor="incentiveAmount"
-                >
-                  Урамшуулал (₮)
-                </label>
+                <label className="block mb-1 font-medium">Урамшуулал (₮)</label>
                 <input
-                  id="incentiveAmount"
                   type="number"
-                  min="0"
-                  step="1000"
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   {...register("incentiveAmount", {
                     required: "Урамшууллын дүн оруулна уу",
-                    min: {
-                      value: 0,
-                      message: "Урамшууллын дүн 0 эсвэл түүнээс их байх ёстой",
-                    },
+                    min: { value: 0, message: "0 эсвэл түүнээс их байх ёстой" },
                   })}
+                  className="w-full border rounded p-2"
                 />
-                {errors.incentiveAmount && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {errors.incentiveAmount.message}
-                  </p>
-                )}
               </div>
             </div>
 
-            <div className="flex justify-end space-x-3">
+            <div className="flex justify-end gap-4">
               <button
                 type="button"
                 onClick={handleCancel}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50"
+                className="bg-gray-300 text-gray-700 px-4 py-2 rounded"
               >
-                Цуцлах
+                Болих
               </button>
               <button
                 type="submit"
                 disabled={submitLoading}
-                className={`px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700 ${
-                  submitLoading ? "opacity-50 cursor-not-allowed" : ""
-                }`}
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
               >
-                {submitLoading ? "Хадгалж байна..." : "Хадгалах"}
+                {submitLoading ? "Илгээж байна..." : "Үүсгэх"}
               </button>
             </div>
           </form>

@@ -9,6 +9,7 @@ import { doc, getDoc, collection, getDocs } from "firebase/firestore";
 import { getTask, updateTask } from "@/lib/tasks";
 import { Task, User } from "@/types";
 import { logoutUser } from "@/lib/auth";
+import { FaPlus, FaTrash } from "react-icons/fa";
 
 interface TaskFormData {
   title: string;
@@ -16,7 +17,13 @@ interface TaskFormData {
   assignedTo: string;
   dueDate: string;
   incentiveAmount: number;
-  requirements: string;
+  requirements: string; // We'll convert this to JSON string for storage
+}
+
+interface RequirementInput {
+  id: string;
+  field1: string; // шаардлага
+  field2: string; // оноо эсвэл тайлбар
 }
 
 export default function EditTaskPage() {
@@ -29,6 +36,10 @@ export default function EditTaskPage() {
   const [loading, setLoading] = useState(true);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [inputs, setInputs] = useState<RequirementInput[]>([
+    { id: crypto.randomUUID(), field1: "", field2: "" },
+  ]);
 
   const {
     register,
@@ -46,6 +57,27 @@ export default function EditTaskPage() {
     },
   });
 
+  // Handler for input changes in dynamic requirements
+  const handleChange = (id: string, field: "field1" | "field2", value: string) => {
+    setInputs((prev) =>
+      prev.map((input) =>
+        input.id === id ? { ...input, [field]: value } : input
+      )
+    );
+  };
+
+  // Add new empty requirement input
+  const handleAdd = () => {
+    setInputs((prev) => [...prev, { id: crypto.randomUUID(), field1: "", field2: "" }]);
+  };
+
+  // Remove a requirement input by id
+  const handleRemove = (id: string) => {
+    if (inputs.length > 1) {
+      setInputs((prev) => prev.filter((input) => input.id !== id));
+    }
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -53,7 +85,6 @@ export default function EditTaskPage() {
         const userDoc = await getDoc(doc(db, "users", user.uid));
         if (userDoc.exists()) {
           const userData = userDoc.data();
-          // Зөвхөн админ хэрэглэгч нэвтрэх эрхтэй
           if (userData.role === "admin") {
             setCurrentUser({ uid: user.uid, ...userData });
 
@@ -85,22 +116,36 @@ export default function EditTaskPage() {
                 assignedTo: task.assignedTo,
                 dueDate: dueDate,
                 incentiveAmount: task.incentiveAmount,
+                requirements: task.requirements || "", // хадгалсан requirements-ийг авах
               });
+
+              // Хэрвээ requirements JSON форматаар хадгалагдсан бол inputs-д буцаан дамжуулах
+              try {
+                const reqs = task.requirements ? JSON.parse(task.requirements) : [];
+                if (Array.isArray(reqs) && reqs.length > 0) {
+                  setInputs(
+                    reqs.map((r: any) => ({
+                      id: crypto.randomUUID(),
+                      field1: r.field1 || "",
+                      field2: r.field2 || "",
+                    }))
+                  );
+                }
+              } catch {
+                // JSON биш бол орхих
+              }
             } else {
               setError("Даалгаврын мэдээлэл авахад алдаа гарлаа");
             }
           } else {
-            // Админ биш хэрэглэгч
             await logoutUser();
             router.push("/login");
           }
         } else {
-          // Хэрэглэгчийн мэдээлэл олдсонгүй
           await logoutUser();
           router.push("/login");
         }
       } else {
-        // Нэвтрээгүй үед нэвтрэх хуудас руу шилжүүлэх
         router.push("/login");
       }
       setLoading(false);
@@ -113,12 +158,15 @@ export default function EditTaskPage() {
     setSubmitLoading(true);
     setError(null);
 
+    // Шаардлагуудыг JSON болгож хөрвүүлэх
+    const requirementsJSON = JSON.stringify(inputs);
+
     try {
-      // Даалгавар шинэчлэх
       const taskData = {
         ...data,
         dueDate: new Date(data.dueDate),
         incentiveAmount: Number(data.incentiveAmount),
+        requirements: requirementsJSON,
         updatedAt: new Date(),
       };
 
@@ -196,38 +244,55 @@ export default function EditTaskPage() {
               )}
             </div>
 
-           <div className="mb-4">
-  <label htmlFor="requirements" className="block text-sm font-medium text-gray-700 mb-1">
-    Даалгаврын шаардлагууд
-  </label>
-  <textarea
-    id="requirements"
-    {...register("requirements", { required: "Шаардлагуудыг оруулна уу." })}
-    rows={4}
-    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-    placeholder={`Жишээ:\n- Хугацаандаа дуусгах\n- Чанартай тайлан ирүүлэх\n- Багаар ажиллах`}
-  />
-  {errors.requirements && (
-    <p className="text-sm text-red-500 mt-1">{errors.requirements.message}</p>
-  )}
-</div>
+            <div className="mb-4">
+              <label className="block mb-1 font-medium">Даалгаврын шаардлагууд</label>
+              <div className="space-y-2">
+                {inputs.map((input) => (
+                  <div key={input.id} className="flex gap-2 items-center">
+                    <input
+                      value={input.field1}
+                      onChange={(e) => handleChange(input.id, "field1", e.target.value)}
+                      placeholder="Шаардлага"
+                      className="border p-2 rounded w-1/2"
+                    />
+                    <input
+                      value={input.field2}
+                      onChange={(e) => handleChange(input.id, "field2", e.target.value)}
+                      placeholder="Оноо эсвэл Тайлбар"
+                      className="border p-2 rounded w-1/2"
+                    />
+                    <button type="button" onClick={handleAdd} className="text-green-600">
+                      <FaPlus />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemove(input.id)}
+                      disabled={inputs.length === 1}
+                      className={`text-red-600 ${inputs.length === 1 ? "opacity-50 cursor-not-allowed" : ""}`}
+                    >
+                      <FaTrash />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
 
             <div className="mb-4">
               <label
-                className="block text-sm font-medium text-gray-700 mb-1"
                 htmlFor="assignedTo"
+                className="block text-sm font-medium text-gray-700 mb-1"
               >
-                Ажилтан
+                Хариуцах хүн
               </label>
               <select
                 id="assignedTo"
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                {...register("assignedTo", { required: "Ажилтан сонгоно уу" })}
+                className="block w-full border border-gray-300 rounded-md p-2"
+                {...register("assignedTo", { required: "Хариуцах хүн заавал сонгоно уу" })}
               >
-                <option value="">Сонгоно уу</option>
+                <option value="">-- Сонгох --</option>
                 {users.map((user) => (
                   <option key={user.uid} value={user.uid}>
-                    {user.displayName} ({user.email})
+                    {user.displayName || user.email}
                   </option>
                 ))}
               </select>
@@ -238,72 +303,60 @@ export default function EditTaskPage() {
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div>
-                <label
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                  htmlFor="dueDate"
-                >
-                  Дуусах хугацаа
-                </label>
-                <input
-                  id="dueDate"
-                  type="date"
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  {...register("dueDate", {
-                    required: "Дуусах хугацаа оруулна уу",
-                  })}
-                />
-                {errors.dueDate && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {errors.dueDate.message}
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                  htmlFor="incentiveAmount"
-                >
-                  Урамшуулал (₮)
-                </label>
-                <input
-                  id="incentiveAmount"
-                  type="number"
-                  min="0"
-                  step="1000"
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  {...register("incentiveAmount", {
-                    required: "Урамшууллын дүн оруулна уу",
-                    min: {
-                      value: 0,
-                      message: "Урамшууллын дүн 0 эсвэл түүнээс их байх ёстой",
-                    },
-                  })}
-                />
-                {errors.incentiveAmount && (
-                  <p className="mt-1 text-sm text-red-600">
-                    {errors.incentiveAmount.message}
-                  </p>
-                )}
-              </div>
+            <div className="mb-4">
+              <label
+                htmlFor="dueDate"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Дуусах огноо
+              </label>
+              <input
+                type="date"
+                id="dueDate"
+                className="block w-full border border-gray-300 rounded-md p-2"
+                {...register("dueDate", { required: "Дуусах огноо заавал оруулна уу" })}
+              />
+              {errors.dueDate && (
+                <p className="mt-1 text-sm text-red-600">{errors.dueDate.message}</p>
+              )}
             </div>
 
-            <div className="flex justify-end space-x-3">
+            <div className="mb-6">
+              <label
+                htmlFor="incentiveAmount"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Урамшууллын хэмжээ
+              </label>
+              <input
+                type="number"
+                id="incentiveAmount"
+                className="block w-full border border-gray-300 rounded-md p-2"
+                {...register("incentiveAmount", {
+                  required: "Урамшууллын хэмжээ оруулна уу",
+                  min: { value: 0, message: "Урамшуулал 0-с бага байж болохгүй" },
+                })}
+              />
+              {errors.incentiveAmount && (
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.incentiveAmount.message}
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-4 justify-end">
               <button
                 type="button"
                 onClick={handleCancel}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50"
+                className="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400"
+                disabled={submitLoading}
               >
-                Цуцлах
+                Болих
               </button>
               <button
                 type="submit"
+                className="px-6 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
                 disabled={submitLoading}
-                className={`px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700 ${
-                  submitLoading ? "opacity-50 cursor-not-allowed" : ""
-                }`}
               >
                 {submitLoading ? "Хадгалж байна..." : "Хадгалах"}
               </button>
