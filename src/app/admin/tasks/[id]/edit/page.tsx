@@ -154,9 +154,36 @@ export default function EditTaskPage() {
     return () => unsubscribe();
   }, [router, taskId, reset]);
 
-  const onSubmit = async (data: TaskFormData) => {
-    setSubmitLoading(true);
-    setError(null);
+ const onSubmit = async (data: TaskFormData) => {
+  setSubmitLoading(true);
+  setError(null);
+
+  if (!data.assignedTo) {
+    setError("Даалгавар хариуцагчийг сонгоно уу");
+    setSubmitLoading(false);
+    return;
+  }
+
+  const filteredReqs = inputs.filter(i => i.field1.trim() !== "");
+
+  if (filteredReqs.length === 0) {
+    setError("Хамгийн багадаа нэг шаардлага оруулна уу");
+    setSubmitLoading(false);
+    return;
+  }
+
+  // Шаардлагын хувь нийлбэрийг тооцоолох
+  const totalPercent = filteredReqs.reduce(
+    (sum, item) => sum + Number(item.field2 || 0),
+    0
+  );
+
+  // Яг 100% тэнцэх эсэхийг шалгах
+  if (totalPercent !== 100) {
+    setError(`Шаардлагуудын нийт хувь ${totalPercent}%. Нийт хувь заавал 100% байх ёстой.`);
+    setSubmitLoading(false);
+    return;
+  }
 
     // Шаардлагуудыг JSON болгож хөрвүүлэх
     const requirementsJSON = JSON.stringify(inputs);
@@ -256,11 +283,14 @@ export default function EditTaskPage() {
                       className="border p-2 rounded w-1/2"
                     />
                     <input
-                      value={input.field2}
-                      onChange={(e) => handleChange(input.id, "field2", e.target.value)}
-                      placeholder="Оноо эсвэл Тайлбар"
-                      className="border p-2 rounded w-1/2"
-                    />
+  type="number"
+  value={input.field2}
+  onChange={(e) => handleChange(input.id, "field2", e.target.value)}
+  placeholder="Хувиар (жишээ нь: 20)"
+  min="0"
+  max="100"
+  className="border p-2 rounded w-1/2"
+/>
                     <button type="button" onClick={handleAdd} className="text-green-600">
                       <FaPlus />
                     </button>

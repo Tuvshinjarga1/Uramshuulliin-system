@@ -10,7 +10,7 @@ import { Task, User } from "@/types";
 import { logoutUser } from "@/lib/auth";
 import TaskCard from "@/components/TaskCard";
 
-export default function TaskDetailPage() {
+export default function EvaluationPage() {
   const router = useRouter();
   const params = useParams();
   const taskId = params.id as string;
@@ -22,6 +22,9 @@ export default function TaskDetailPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [statusUpdateLoading, setStatusUpdateLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [requirements, setRequirements] = useState<any[]>([]);
+
 
   const loadData = async () => {
     try {
@@ -30,6 +33,7 @@ export default function TaskDetailPage() {
       if (taskResult.success && taskResult.task) {
         const taskData = taskResult.task as Task;
         setTask(taskData);
+        
 
         // Хариуцсан хэрэглэгчийн мэдээлэл авах
         if (taskData.assignedTo) {
@@ -51,6 +55,25 @@ export default function TaskDetailPage() {
       setLoading(false);
     }
   };
+const handleSaveEvaluation = async () => {
+  setSubmitLoading(true);
+  try {
+    const updatedTask = {
+      ...task,
+      requirements: JSON.stringify(requirements),
+    };
+    const result = await updateTask(taskId, updatedTask);
+    if (result.success) {
+      await loadData(); // Шинэчилсэн мэдээлэл авах
+    } else {
+      setError(result.error || "Хадгалахад алдаа гарлаа");
+    }
+  } catch (err: any) {
+    setError(err.message || "Хадгалахад алдаа гарлаа");
+  } finally {
+    setSubmitLoading(false);
+  }
+};
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -101,10 +124,15 @@ export default function TaskDetailPage() {
       setDeleteLoading(false);
     }
   };
+  
 
   const handleStatusUpdate = async () => {
     await loadData();
   };
+  const handleCancel = () => {
+    router.push("/admin/tasks");
+  };
+
 
   if (loading) {
     return (
@@ -145,7 +173,7 @@ export default function TaskDetailPage() {
       <header className="bg-white shadow">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
           <h1 className="text-3xl font-bold text-gray-900">
-            Даалгаврын дэлгэрэнгүй
+            Үнэлгээний самбар
           </h1>
           <div className="flex items-center space-x-4">
             <button
@@ -236,6 +264,9 @@ export default function TaskDetailPage() {
                           <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Тавигдах шаардлага</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Үнэлгээ(%)</th>
+                            
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Гүйцэтгэсэн байдал</th>
+                            
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
@@ -243,6 +274,14 @@ export default function TaskDetailPage() {
                             <tr key={req.id || index} className="hover:bg-gray-50">
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{req.field1}</td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{req.field2}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                                <input
+                                    type="text"
+                                    className="border border-gray-300 rounded px-2 py-1 w-24"
+                                    value={req.completed}
+                                    placeholder=""
+                                />
+                                </td>
                             </tr>
                           ))}
                         </tbody>
@@ -256,29 +295,24 @@ export default function TaskDetailPage() {
                 <p className="text-sm text-gray-500">Шаардлага оруулаагүй байна.</p>
               )}
 
-              <div className="flex mt-6 space-x-2">
-                <button
-                  onClick={() => router.push(`/admin/tasks/${taskId}/edit`)}
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700"
-                >
-                  Засах
-                </button>
-                <button
-                  onClick={handleDeleteTask}
-                  disabled={deleteLoading}
-                  className={`px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md shadow-sm hover:bg-red-700 ${
-                    deleteLoading ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
-                >
-                  {deleteLoading ? "Устгаж байна..." : "Устгах"}
-                </button>
-                 <button
-                  onClick={() => router.push(`/admin/tasks/${taskId}/evaluation`)}
-                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md shadow-sm hover:bg-green-700"
-                >
-                  Үнэлгээ өгөх
-                </button>
-              </div>
+             <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={handleCancel}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50"
+              >
+                Цуцлах
+              </button>
+              <button
+                type="submit"
+                disabled={submitLoading}
+                className={`px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700 ${
+                  submitLoading ? "opacity-50 cursor-not-allowed" : ""
+                }`}
+              >
+                {submitLoading ? "Хадгалж байна..." : "Хадгалах"}
+              </button>
+            </div>
             </div>
           </div>
 
@@ -313,11 +347,6 @@ export default function TaskDetailPage() {
               ) : (
                 <p className="text-gray-600">Хариуцагч олдсонгүй</p>
               )}
-            </div>
-
-            <div className="bg-white shadow rounded-lg p-6">
-              <h3 className="text-lg font-medium mb-4">Төлөв шинэчлэх</h3>
-              <TaskCard task={task} onStatusChange={handleStatusUpdate} />
             </div>
           </div>
         </div>

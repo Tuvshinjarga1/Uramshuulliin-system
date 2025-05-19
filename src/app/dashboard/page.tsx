@@ -1,6 +1,6 @@
 "use client";
 
-import { JSXElementConstructor, Key, ReactElement, ReactNode, ReactPortal, useEffect, useState } from "react";
+import { ChangeEvent, JSXElementConstructor, Key, ReactElement, ReactNode, ReactPortal, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -9,6 +9,7 @@ import { getUserTasks, updateTaskStatus } from "@/lib/tasks";
 import { getUserIncentives } from "@/lib/incentives";
 import { Task, Incentive } from "@/types";
 import { logoutUser } from "@/lib/auth";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -21,6 +22,7 @@ export default function DashboardPage() {
   const [selectedIncentive, setSelectedIncentive] = useState<Incentive | null>(
     null
   );
+  const [uploadedFile, setUploadedFile] = useState<string | null>(null);
 
   const loadUserData = async (userId: string) => {
     // Хэрэглэгчийн даалгаврууд авах
@@ -90,6 +92,34 @@ export default function DashboardPage() {
       setUpdating(null);
     }
   };
+
+const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>, taskId: string) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  try {
+    const storage = getStorage();
+    const storageRef = ref(storage, `tasks/${taskId}/${file.name}`);
+    await uploadBytes(storageRef, file);
+    const downloadURL = await getDownloadURL(storageRef);
+
+    console.log("Файл амжилттай хадгалагдлаа:", downloadURL);
+    alert("Файл амжилттай хадгалагдлаа!");
+
+    // Дууссан товчийг идэвхжүүлэхийн тулд URL-г хадгалах
+    setUploadedFile(downloadURL);
+
+    // 🔹 Хэрэв firestore эсвэл backend-д хадгалах бол энд:
+    // await updateDoc(doc(db, "tasks", taskId), {
+    //   fileUrl: downloadURL,
+    // });
+
+  } catch (error) {
+    console.error("Файл хадгалахад алдаа гарлаа:", error);
+    alert("Файл хадгалахад алдаа гарлаа.");
+  }
+};
+
 
   // Ажил гүйцэтгэсэн тэмдэглэх
   const handleCompleteTask = async (taskId: string) => {
@@ -493,7 +523,7 @@ export default function DashboardPage() {
                         <thead className="bg-gray-50">
                           <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Тавигдах шаардлага</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Үнэлгээ</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Үнэлгээ(%)</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
@@ -514,7 +544,18 @@ export default function DashboardPage() {
                     <p className="text-gray-500">Шаардлага оруулаагүй байна.</p>
                   )}
               </div>
-
+ <div className="mb-4">
+  <h4 className="font-medium mb-2">Файл хавсаргах:</h4>
+  <input
+    type="file"
+    onChange={(e) => handleFileUpload(e, selectedTask.id)}
+    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4
+               file:rounded-md file:border-0
+               file:text-sm file:font-semibold
+               file:bg-blue-50 file:text-blue-700
+               hover:file:bg-blue-100"
+  />
+</div>
 
               <div className="flex justify-end space-x-2 mt-6">
                 {selectedTask.status === "pending" && (
@@ -529,17 +570,19 @@ export default function DashboardPage() {
                   </button>
                 )}
 
-                {selectedTask.status === "in-progress" && (
-                  <button
-                    onClick={() => {
-                      handleCompleteTask(selectedTask.id);
-                      closeTaskDetails();
-                    }}
-                    className="px-3 py-1 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700"
-                  >
-                    Дууссан
-                  </button>
-                )}
+                            {selectedTask.status === "in-progress" && (
+                <button
+                  onClick={() => {
+                    handleCompleteTask(selectedTask.id);
+                    closeTaskDetails();
+                  }}
+                  disabled={!uploadedFile}
+                  className={`px-3 py-1 text-sm font-medium text-white rounded-md 
+                              ${uploadedFile ? "bg-green-600 hover:bg-green-700" : "bg-gray-400 cursor-not-allowed"}`}
+                >
+                  Дууссан
+                </button>
+              )}
 
                 <button
                   onClick={closeTaskDetails}

@@ -105,48 +105,62 @@ export default function NewTaskPage() {
   };
 
   const onSubmit = async (data: TaskFormData) => {
-    setSubmitLoading(true);
-    setError(null);
+  setSubmitLoading(true);
+  setError(null);
 
-    if (!data.assignedTo) {
-      setError("Даалгавар хариуцагчийг сонгоно уу");
-      setSubmitLoading(false);
-      return;
+  if (!data.assignedTo) {
+    setError("Даалгавар хариуцагчийг сонгоно уу");
+    setSubmitLoading(false);
+    return;
+  }
+
+  const filteredReqs = inputs.filter(i => i.field1.trim() !== "");
+
+  if (filteredReqs.length === 0) {
+    setError("Хамгийн багадаа нэг шаардлага оруулна уу");
+    setSubmitLoading(false);
+    return;
+  }
+
+  // Шаардлагын хувь нийлбэрийг тооцоолох
+  const totalPercent = filteredReqs.reduce(
+    (sum, item) => sum + Number(item.field2 || 0),
+    0
+  );
+
+  // Яг 100% тэнцэх эсэхийг шалгах
+  if (totalPercent !== 100) {
+    setError(`Шаардлагуудын нийт хувь ${totalPercent}%. Нийт хувь заавал 100% байх ёстой.`);
+    setSubmitLoading(false);
+    return;
+  }
+
+  try {
+    const result = await createTask({
+      ...data,
+      requirements: JSON.stringify(filteredReqs),
+      incentiveAmount: parseFloat(String(data.incentiveAmount)),
+      dueDate: new Date(data.dueDate),
+      createdBy: user.uid,
+    });
+
+    if (result.success) {
+      setError(null);
+      reset();
+      setInputs([{ id: 1, field1: "", field2: "" }]);
+      setTimeout(() => {
+        router.push(`/admin/tasks/${result.id}`);
+      }, 2000);
+    } else {
+      setError(result.error || "Даалгавар үүсгэхэд алдаа гарлаа");
     }
+  } catch (error: any) {
+    setError(error.message || "Даалгавар үүсгэхэд алдаа гарлаа");
+  } finally {
+    setSubmitLoading(false);
+  }
+};
 
-    // Check at least one valid requirement
-    const filteredReqs = inputs.filter(i => i.field1.trim() !== "");
-    if (filteredReqs.length === 0) {
-      setError("Хамгийн багадаа нэг шаардлага оруулна уу");
-      setSubmitLoading(false);
-      return;
-    }
-
-    try {
-      const result = await createTask({
-        ...data,
-        requirements: JSON.stringify(filteredReqs),
-        incentiveAmount: parseFloat(String(data.incentiveAmount)),
-        dueDate: new Date(data.dueDate),
-        createdBy: user.uid,
-      });
-
-      if (result.success) {
-        setError(null);
-        reset();
-        setInputs([{ id: 1, field1: "", field2: "" }]);
-        setTimeout(() => {
-          router.push(`/admin/tasks/${result.id}`);
-        }, 2000);
-      } else {
-        setError(result.error || "Даалгавар үүсгэхэд алдаа гарлаа");
-      }
-    } catch (error: any) {
-      setError(error.message || "Даалгавар үүсгэхэд алдаа гарлаа");
-    } finally {
-      setSubmitLoading(false);
-    }
-  };
 
   const handleCancel = () => {
     router.push("/admin/tasks");
@@ -209,9 +223,12 @@ export default function NewTaskPage() {
                       className="border p-2 rounded w-1/2"
                     />
                     <input
+                      type="number"
                       value={input.field2}
                       onChange={(e) => handleChange(input.id, "field2", e.target.value)}
-                      placeholder="Оноо эсвэл Тайлбар"
+                      placeholder="Хувиар (жишээ нь: 20)"
+                      min="0"
+                      max="100"
                       className="border p-2 rounded w-1/2"
                     />
                     <button type="button" onClick={handleAdd} className="text-green-600">
@@ -267,6 +284,9 @@ export default function NewTaskPage() {
                   })}
                   className="w-full border rounded p-2"
                 />
+                {errors.incentiveAmount && (
+                  <p className="text-red-500 text-sm">{errors.incentiveAmount.message}</p>
+                )}
               </div>
             </div>
 
@@ -281,9 +301,11 @@ export default function NewTaskPage() {
               <button
                 type="submit"
                 disabled={submitLoading}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                className={`px-4 py-2 rounded text-white ${
+                  submitLoading ? "bg-blue-400" : "bg-blue-600 hover:bg-blue-700"
+                }`}
               >
-                {submitLoading ? "Илгээж байна..." : "Үүсгэх"}
+                {submitLoading ? "Хадгалж байна..." : "Даалгавар үүсгэх"}
               </button>
             </div>
           </form>
