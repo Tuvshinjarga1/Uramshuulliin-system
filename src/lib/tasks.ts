@@ -106,7 +106,8 @@ export const updateTask = async (taskId: string, data: any) => {
 export const updateTaskStatus = async (
   taskId: string,
   status: string,
-  comment: string = ""
+  comment: string = "",
+  fileUrl?: string
 ) => {
   try {
     const updateData: any = {
@@ -118,6 +119,9 @@ export const updateTaskStatus = async (
     // Даалгаврыг дууссан гэж тэмдэглэх үед дууссан огноог хадгалах
     if (status === "completed") {
       updateData.completedAt = Timestamp.now();
+      if (fileUrl) {
+        updateData.fileUrl = fileUrl;
+      }
     }
 
     await updateDoc(doc(db, "tasks", taskId), updateData);

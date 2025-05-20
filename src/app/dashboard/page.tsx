@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { getUserTasks, updateTaskStatus } from "@/lib/tasks";
+import { getUserTasks, updateTaskStatus, updateTask } from "@/lib/tasks";
 import { getUserIncentives } from "@/lib/incentives";
 import { Task, Incentive } from "@/types";
 import { logoutUser } from "@/lib/auth";
@@ -93,46 +93,168 @@ export default function DashboardPage() {
     }
   };
 
-const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>, taskId: string) => {
-  const file = e.target.files?.[0];
-  if (!file) return;
+  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>, taskId: string) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      console.log("Файл сонгогдоогүй байна");
+      return;
+    }
 
-  try {
-    const storage = getStorage();
-    const storageRef = ref(storage, `tasks/${taskId}/${file.name}`);
-    await uploadBytes(storageRef, file);
-    const downloadURL = await getDownloadURL(storageRef);
+    console.log("Сонгосон файл:", {
+      name: file.name,
+      size: file.size,
+      type: file.type
+    });
 
-    console.log("Файл амжилттай хадгалагдлаа:", downloadURL);
-    alert("Файл амжилттай хадгалагдлаа!");
+    // Check file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert("Файлын хэмжээ 10MB-ээс хэтрэхгүй байх ёстой");
+      return;
+    }
 
-    // Дууссан товчийг идэвхжүүлэхийн тулд URL-г хадгалах
-    setUploadedFile(downloadURL);
+    // Check file type
+    const allowedTypes = [
+      'image/png',
+      'image/jpeg',
+      'image/jpg',
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ];
 
-    // 🔹 Хэрэв firestore эсвэл backend-д хадгалах бол энд:
-    // await updateDoc(doc(db, "tasks", taskId), {
-    //   fileUrl: downloadURL,
-    // });
+    if (!allowedTypes.includes(file.type)) {
+      alert("Зөвхөн PNG, JPG, PDF, DOC, DOCX, XLS, XLSX файл зөвшөөрөгдөнө");
+      return;
+    }
 
-  } catch (error) {
-    console.error("Файл хадгалахад алдаа гарлаа:", error);
-    alert("Файл хадгалахад алдаа гарлаа.");
-  }
-};
+    try {
+      setUpdating(taskId);
+      setUploadedFile(null);
+      
+      // Initialize Firebase Storage
+      const storage = getStorage();
+      if (!storage) {
+        throw new Error("Firebase Storage идэвхжээгүй байна");
+      }
 
+      // Create a unique file name
+      const fileName = `${Date.now()}_${file.name}`;
+      const storageRef = ref(storage, `tasks/${taskId}/${fileName}`);
+      
+      // console.log("Файл хадгалах замыг бэлдэж байна:", storageRef.fullPath);
+      
+      // Upload file
+      // console.log("Файл хадгалаж эхэлж байна...");
+      let uploadResult;
+      // try {
+      //   uploadResult = await uploadBytes(storageRef, file);
+      //   console.log("Файл хадгалагдлаа:", uploadResult);
+      // } catch (uploadError: any) {
+      //   console.error("Файл хадгалахад алдаа гарлаа:", uploadError);
+      //   throw new Error(`Файл хадгалахад алдаа гарлаа: ${uploadError.message}`);
+      // }
+
+      // if (!uploadResult) {
+      //   throw new Error("Файл хадгалахад алдаа гарлаа");
+      // }
+
+      // Get download URL
+      // console.log("Файлын линк аваж байна...");
+      // let downloadURL;
+      // try {
+      //   downloadURL = await getDownloadURL(storageRef);
+      //   console.log("Файлын линк:", downloadURL);
+      // } catch (urlError: any) {
+      //   console.error("Файлын линк авахад алдаа гарлаа:", urlError);
+      //   throw new Error(`Файлын линк авахад алдаа гарлаа: ${urlError.message}`);
+      // }
+
+      // if (!downloadURL) {
+      //   throw new Error("Файлын линк авахад алдаа гарлаа");
+      // }
+
+      // Update the task with the file URL
+      console.log("Даалгаврын мэдээллийг шинэчлэж байна...");
+      const updateData = {
+        //fileUrl: downloadURL,
+        fileName: fileName,
+        fileType: file.type,
+        fileSize: file.size,
+        uploadedAt: new Date().toISOString()
+      };
+      console.log("Шинэчлэх мэдээлэл:", updateData);
+
+      const updateResult = await updateTask(taskId, updateData);
+      console.log("Шинэчлэлтийн үр дүн:", updateResult);
+
+      if (!updateResult.success) {
+        throw new Error(updateResult.error || "Даалгаврын мэдээлэл шинэчлэхэд алдаа гарлаа");
+      }
+
+      // Update local state
+      setTasks(tasks.map(task => 
+        task.id === taskId 
+          ? { ...task, ...updateData }
+          : task
+      ));
+      
+      // Update selected task if it's the current one
+      if (selectedTask?.id === taskId) {
+        setSelectedTask(prev => prev ? { ...prev, ...updateData } : null);
+      }
+
+     // setUploadedFile(downloadURL);
+      alert("Файл амжилттай хадгалагдлаа!");
+      
+      // Reload user data
+      await loadUserData(user.uid);
+    } catch (error: any) {
+      console.error("Файл хадгалахад алдаа гарлаа:", error);
+      alert(error.message || "Файл хадгалахад алдаа гарлаа. Дараа дахин оролдоно уу.");
+      setUploadedFile(null);
+    } finally {
+      setUpdating(null);
+    }
+  };
 
   // Ажил гүйцэтгэсэн тэмдэглэх
   const handleCompleteTask = async (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    // if (!task?.fileUrl) {
+    //   alert("Даалгаврыг дуусгахын өмнө файл хавсаргана уу!");
+    //   return;
+    // }
+
     if (window.confirm("Энэ даалгаврыг гүйцэтгэсэн гэж тэмдэглэх үү?")) {
       setUpdating(taskId);
-      const result = await updateTaskStatus(taskId, "completed");
-      if (result.success) {
-        // Хэрэглэгчийн даалгаврын жагсаалтыг шинэчлэх
-        await loadUserData(user.uid);
-      } else {
-        alert("Алдаа гарлаа: " + result.error);
+      try {
+        const result = await updateTaskStatus(taskId, "completed");
+        if (result.success) {
+          // Update local state
+          setTasks(tasks.map(task => 
+            task.id === taskId 
+              ? { ...task, status: "completed" }
+              : task
+          ));
+          
+          // Update selected task if it's the current one
+          if (selectedTask?.id === taskId) {
+            setSelectedTask(prev => prev ? { ...prev, status: "completed" } : null);
+          }
+
+          alert("Даалгавар амжилттай дууслаа!");
+          await loadUserData(user.uid); // Reload data after completion
+        } else {
+          throw new Error(result.error || "Даалгавар дуусгахад алдаа гарлаа");
+        }
+      } catch (error) {
+        console.error("Даалгавар дуусгахад алдаа гарлаа:", error);
+        alert("Даалгавар дуусгахад алдаа гарлаа.");
+      } finally {
+        setUpdating(null);
       }
-      setUpdating(null);
     }
   };
 
@@ -227,12 +349,6 @@ const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>, taskId: string
                       </th>
                       <th
                         scope="col"
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                      >
-                        Урамшуулал
-                      </th>
-                      <th
-                        scope="col"
                         className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
                       >
                         Үйлдэл
@@ -286,9 +402,6 @@ const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>, taskId: string
                             : typeof task.dueDate === "string"
                             ? new Date(task.dueDate).toLocaleDateString("mn-MN")
                             : "Тодорхойгүй"}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {task.incentiveAmount.toLocaleString()} ₮
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
                           {task.status === "pending" ? (
@@ -485,11 +598,6 @@ const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>, taskId: string
                 </div>
 
                 <div className="mb-2">
-                  <span className="font-medium">Урамшуулал: </span>
-                  <span>{selectedTask.incentiveAmount.toLocaleString()} ₮</span>
-                </div>
-
-                <div className="mb-2">
                   <span className="font-medium">Даалгавар үүссэн огноо: </span>
                   <span>
                     {selectedTask.createdAt
@@ -544,18 +652,6 @@ const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>, taskId: string
                     <p className="text-gray-500">Шаардлага оруулаагүй байна.</p>
                   )}
               </div>
- <div className="mb-4">
-  <h4 className="font-medium mb-2">Файл хавсаргах:</h4>
-  <input
-    type="file"
-    onChange={(e) => handleFileUpload(e, selectedTask.id)}
-    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4
-               file:rounded-md file:border-0
-               file:text-sm file:font-semibold
-               file:bg-blue-50 file:text-blue-700
-               hover:file:bg-blue-100"
-  />
-</div>
 
               <div className="flex justify-end space-x-2 mt-6">
                 {selectedTask.status === "pending" && (
@@ -570,19 +666,109 @@ const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>, taskId: string
                   </button>
                 )}
 
-                            {selectedTask.status === "in-progress" && (
-                <button
-                  onClick={() => {
-                    handleCompleteTask(selectedTask.id);
-                    closeTaskDetails();
-                  }}
-                  disabled={!uploadedFile}
-                  className={`px-3 py-1 text-sm font-medium text-white rounded-md 
-                              ${uploadedFile ? "bg-green-600 hover:bg-green-700" : "bg-gray-400 cursor-not-allowed"}`}
-                >
-                  Дууссан
-                </button>
-              )}
+                {/* {selectedTask.status === "in-progress" && (
+                  <div className="flex flex-col space-y-2"> */}
+
+
+
+
+
+{/* 
+
+
+                    <div className="mb-2">
+                      <h4 className="font-medium mb-2">Файл хавсаргах:</h4>
+                      {selectedTask.fileUrl ? (
+                        <div className="flex items-center space-x-2 p-4 bg-green-50 rounded-lg border border-green-200">
+                          <svg className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div className="flex flex-col">
+                            <a 
+                              href={selectedTask.fileUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 flex items-center"
+                            >
+                              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                              </svg>
+                              {selectedTask.fileName || "Хавсаргасан файл харах"}
+                            </a>
+                            {selectedTask.uploadedAt && (
+                              <span className="text-xs text-gray-500 mt-1">
+                                Хавсаргасан: {new Date(selectedTask.uploadedAt).toLocaleString('mn-MN')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-2">
+                          <div className="flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-blue-500 transition-colors duration-200">
+                            <div className="space-y-1 text-center">
+                              <svg className="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                              <div className="flex text-sm text-gray-600">
+                                <label htmlFor={`file-upload-${selectedTask.id}`} className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
+                                  <span>Файл сонгох</span>
+                                  <input
+                                    id={`file-upload-${selectedTask.id}`}
+                                    type="file"
+                                    onChange={(e) => handleFileUpload(e, selectedTask.id)}
+                                    className="sr-only"
+                                    accept=".png,.jpg,.jpeg,.pdf,.doc,.docx,.xls,.xlsx"
+                                    disabled={updating === selectedTask.id}
+                                  />
+                                </label>
+                                <p className="pl-1">эсвэл файл чирж тавих</p>
+                              </div>
+                              <p className="text-xs text-gray-500">
+                                PNG, JPG, PDF, DOC, DOCX, XLS, XLSX файл (10MB хүртэл)
+                              </p>
+                              {updating === selectedTask.id && (
+                                <div className="mt-2">
+                                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                                  <p className="text-sm text-gray-500 mt-1">Файл хадгалаж байна...</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          {!uploadedFile && !selectedTask.fileUrl && (
+                            <p className="mt-2 text-sm text-red-500 flex items-center">
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              Даалгаврыг дуусгахын өмнө файл хавсаргана уу
+                            </p>
+                          )}
+                          {uploadedFile && (
+                            <p className="mt-2 text-sm text-green-500 flex items-center">
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                              </svg>
+                              Файл амжилттай хавсаргагдлаа
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        handleCompleteTask(selectedTask.id);
+                        closeTaskDetails();
+                      }}
+                      disabled={!selectedTask.fileUrl && !uploadedFile}
+                      className={`px-3 py-1 text-sm font-medium text-white rounded-md 
+                                ${(selectedTask.fileUrl || uploadedFile) ? "bg-green-600 hover:bg-green-700" : "bg-gray-400 cursor-not-allowed"}`}
+                    >
+                      Дууссан
+                    </button>
+                  </div>
+
+ */}
+                {/* )} */}
 
                 <button
                   onClick={closeTaskDetails}

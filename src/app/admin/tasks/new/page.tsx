@@ -16,7 +16,6 @@ interface TaskFormData {
   description: string;
   assignedTo: string;
   dueDate: string;
-  incentiveAmount: number;
   requirements: string; // JSON string
 }
 
@@ -48,7 +47,6 @@ export default function NewTaskPage() {
       description: "",
       assignedTo: "",
       dueDate: new Date().toISOString().split("T")[0],
-      incentiveAmount: 0,
       requirements: "",
     },
   });
@@ -139,7 +137,6 @@ export default function NewTaskPage() {
     const result = await createTask({
       ...data,
       requirements: JSON.stringify(filteredReqs),
-      incentiveAmount: parseFloat(String(data.incentiveAmount)),
       dueDate: new Date(data.dueDate),
       createdBy: user.uid,
     });
@@ -273,20 +270,6 @@ export default function NewTaskPage() {
                   {...register("dueDate", { required: "Дуусах хугацаа оруулна уу" })}
                   className="w-full border rounded p-2"
                 />
-              </div>
-              <div>
-                <label className="block mb-1 font-medium">Урамшуулал (₮)</label>
-                <input
-                  type="number"
-                  {...register("incentiveAmount", {
-                    required: "Урамшууллын дүн оруулна уу",
-                    min: { value: 0, message: "0 эсвэл түүнээс их байх ёстой" },
-                  })}
-                  className="w-full border rounded p-2"
-                />
-                {errors.incentiveAmount && (
-                  <p className="text-red-500 text-sm">{errors.incentiveAmount.message}</p>
-                )}
               </div>
             </div>
 

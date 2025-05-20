@@ -113,10 +113,6 @@ export default function TaskCard({ task, onStatusChange }: TaskCardProps) {
             <span className="font-medium">Дуусах хугацаа:</span>{" "}
             {formatDate(task.dueDate)}
           </div>
-          <div>
-            <span className="font-medium">Урамшуулал:</span>{" "}
-            {task.incentiveAmount.toLocaleString()} ₮
-          </div>
         </div>
 
         {task.statusComment && (

@@ -34,6 +34,15 @@ export default function EvaluationPage() {
         const taskData = taskResult.task as Task;
         setTask(taskData);
         
+        // Requirements-ийг parse хийх
+        if (taskData.requirements) {
+          try {
+            const parsedRequirements = JSON.parse(taskData.requirements);
+            setRequirements(parsedRequirements);
+          } catch (error) {
+            setRequirements([]);
+          }
+        }
 
         // Хариуцсан хэрэглэгчийн мэдээлэл авах
         if (taskData.assignedTo) {
@@ -55,25 +64,43 @@ export default function EvaluationPage() {
       setLoading(false);
     }
   };
-const handleSaveEvaluation = async () => {
-  setSubmitLoading(true);
-  try {
-    const updatedTask = {
-      ...task,
-      requirements: JSON.stringify(requirements),
+
+  const handleRequirementChange = (index: number, value: string) => {
+    const newRequirements = [...requirements];
+    newRequirements[index] = {
+      ...newRequirements[index],
+      completed: value
     };
-    const result = await updateTask(taskId, updatedTask);
-    if (result.success) {
-      await loadData(); // Шинэчилсэн мэдээлэл авах
-    } else {
-      setError(result.error || "Хадгалахад алдаа гарлаа");
+    setRequirements(newRequirements);
+  };
+
+  const handleSaveEvaluation = async () => {
+    if (task?.status !== 'completed') {
+      setError('Зөвхөн дууссан даалгаврыг үнэлэх боломжтой');
+      return;
     }
-  } catch (err: any) {
-    setError(err.message || "Хадгалахад алдаа гарлаа");
-  } finally {
-    setSubmitLoading(false);
-  }
-};
+
+    setSubmitLoading(true);
+    try {
+      const updatedTask = {
+        ...task,
+        requirements: JSON.stringify(requirements),
+        evaluated: true,
+        evaluatedAt: new Date()
+      };
+      const result = await updateTask(taskId, updatedTask);
+      if (result.success) {
+        await loadData();
+        router.push('/admin/tasks');
+      } else {
+        setError(result.error || 'Хадгалахад алдаа гарлаа');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Хадгалахад алдаа гарлаа');
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -228,12 +255,7 @@ const handleSaveEvaluation = async () => {
                   <p className="text-sm text-gray-500">Дуусах хугацаа</p>
                   <p className="font-medium">{formatDate(task.dueDate)}</p>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-500">Урамшуулал</p>
-                  <p className="font-medium">
-                    {task.incentiveAmount.toLocaleString()} ₮
-                  </p>
-                </div>
+              
                 <div>
                   <p className="text-sm text-gray-500">Үүсгэсэн огноо</p>
                   <p className="font-medium">{formatDate(task.createdAt)}</p>
@@ -250,12 +272,7 @@ const handleSaveEvaluation = async () => {
 
               {task.requirements ? (
                 (() => {
-                  let requirementsArray = [];
-                  try {
-                    requirementsArray = JSON.parse(task.requirements);
-                  } catch (error) {
-                    requirementsArray = [];
-                  }
+                  let requirementsArray = requirements;
 
                   return requirementsArray.length > 0 ? (
                     <div className="overflow-x-auto">
@@ -264,9 +281,7 @@ const handleSaveEvaluation = async () => {
                           <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Тавигдах шаардлага</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Үнэлгээ(%)</th>
-                            
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Гүйцэтгэсэн байдал</th>
-                            
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
@@ -274,18 +289,30 @@ const handleSaveEvaluation = async () => {
                             <tr key={req.id || index} className="hover:bg-gray-50">
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{req.field1}</td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{req.field2}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                                 <input
-                                    type="text"
-                                    className="border border-gray-300 rounded px-2 py-1 w-24"
-                                    value={req.completed}
-                                    placeholder=""
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  className="border border-gray-300 rounded px-2 py-1 w-24"
+                                  value={req.completed || ''}
+                                  onChange={(e) => handleRequirementChange(index, e.target.value)}
+                                  disabled={task.status !== 'completed'}
+                                  placeholder="0-100"
                                 />
-                                </td>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
+                      <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                        <div className="flex justify-between items-center">
+                          <span className="text-lg font-medium text-gray-700">Нийт үнэлгээ:</span>
+                          <span className="text-xl font-bold text-blue-600">
+                            {requirementsArray.reduce((sum, req) => sum + (parseInt(req.completed) || 0), 0)}%
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   ) : (
                     <p className="text-sm text-gray-500">Шаардлага оруулаагүй байна.</p>
@@ -295,24 +322,33 @@ const handleSaveEvaluation = async () => {
                 <p className="text-sm text-gray-500">Шаардлага оруулаагүй байна.</p>
               )}
 
-             <div className="flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50"
-              >
-                Цуцлах
-              </button>
-              <button
-                type="submit"
-                disabled={submitLoading}
-                className={`px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700 ${
-                  submitLoading ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              >
-                {submitLoading ? "Хадгалж байна..." : "Хадгалах"}
-              </button>
-            </div>
+              {task.status === 'completed' && !task.evaluated && (
+                <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                  <p className="text-blue-700">Энэ даалгавар дууссан тул үнэлгээ өгөх боломжтой.</p>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-3 mt-4">
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50"
+                >
+                  Цуцлах
+                </button>
+                {task.status === 'completed' && !task.evaluated && (
+                  <button
+                    type="button"
+                    onClick={handleSaveEvaluation}
+                    disabled={submitLoading}
+                    className={`px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700 ${
+                      submitLoading ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {submitLoading ? 'Хадгалж байна...' : 'Үнэлгээ хадгалах'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 

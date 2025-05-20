@@ -201,12 +201,6 @@ export default function TaskDetailPage() {
                   <p className="font-medium">{formatDate(task.dueDate)}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Урамшуулал</p>
-                  <p className="font-medium">
-                    {task.incentiveAmount.toLocaleString()} ₮
-                  </p>
-                </div>
-                <div>
                   <p className="text-sm text-gray-500">Үүсгэсэн огноо</p>
                   <p className="font-medium">{formatDate(task.createdAt)}</p>
                 </div>
@@ -259,16 +253,23 @@ export default function TaskDetailPage() {
               <div className="flex mt-6 space-x-2">
                 <button
                   onClick={() => router.push(`/admin/tasks/${taskId}/edit`)}
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700"
+                  disabled={task.status === "completed"}
+                  className={`px-4 py-2 text-sm font-medium text-white ${
+                    task.status === "completed" 
+                      ? "bg-gray-400 cursor-not-allowed" 
+                      : "bg-blue-600 hover:bg-blue-700"
+                  } rounded-md shadow-sm`}
                 >
-                  Засах
+                  {task.status === "completed" ? "Дууссан даалгавар" : "Засах"}
                 </button>
                 <button
                   onClick={handleDeleteTask}
-                  disabled={deleteLoading}
-                  className={`px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md shadow-sm hover:bg-red-700 ${
-                    deleteLoading ? "opacity-50 cursor-not-allowed" : ""
-                  }`}
+                  disabled={deleteLoading || task.status === "completed"}
+                  className={`px-4 py-2 text-sm font-medium text-white ${
+                    task.status === "completed" || deleteLoading
+                      ? "bg-gray-400 cursor-not-allowed" 
+                      : "bg-red-600 hover:bg-red-700"
+                  } rounded-md shadow-sm`}
                 >
                   {deleteLoading ? "Устгаж байна..." : "Устгах"}
                 </button>

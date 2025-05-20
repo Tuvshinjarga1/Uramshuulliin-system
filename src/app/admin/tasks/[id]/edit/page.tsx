@@ -16,7 +16,6 @@ interface TaskFormData {
   description: string;
   assignedTo: string;
   dueDate: string;
-  incentiveAmount: number;
   requirements: string; // We'll convert this to JSON string for storage
 }
 
@@ -52,7 +51,6 @@ export default function EditTaskPage() {
       description: "",
       assignedTo: "",
       dueDate: new Date().toISOString().split("T")[0],
-      incentiveAmount: 0,
       requirements: "",
     },
   });
@@ -115,7 +113,6 @@ export default function EditTaskPage() {
                 description: task.description,
                 assignedTo: task.assignedTo,
                 dueDate: dueDate,
-                incentiveAmount: task.incentiveAmount,
                 requirements: task.requirements || "", // хадгалсан requirements-ийг авах
               });
 
@@ -192,7 +189,6 @@ export default function EditTaskPage() {
       const taskData = {
         ...data,
         dueDate: new Date(data.dueDate),
-        incentiveAmount: Number(data.incentiveAmount),
         requirements: requirementsJSON,
         updatedAt: new Date(),
       };
@@ -348,29 +344,6 @@ export default function EditTaskPage() {
               />
               {errors.dueDate && (
                 <p className="mt-1 text-sm text-red-600">{errors.dueDate.message}</p>
-              )}
-            </div>
-
-            <div className="mb-6">
-              <label
-                htmlFor="incentiveAmount"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
-                Урамшууллын хэмжээ
-              </label>
-              <input
-                type="number"
-                id="incentiveAmount"
-                className="block w-full border border-gray-300 rounded-md p-2"
-                {...register("incentiveAmount", {
-                  required: "Урамшууллын хэмжээ оруулна уу",
-                  min: { value: 0, message: "Урамшуулал 0-с бага байж болохгүй" },
-                })}
-              />
-              {errors.incentiveAmount && (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.incentiveAmount.message}
-                </p>
               )}
             </div>
 

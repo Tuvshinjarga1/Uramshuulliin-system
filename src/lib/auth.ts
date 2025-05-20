@@ -17,7 +17,8 @@ export const registerUser = async (
   birthdate: string,
   gender: string,
   phone?: string,
-  address?: string
+  address?: string,
+  salary?: number
 ) => {
   try {
     const userCredential = await createUserWithEmailAndPassword(
@@ -36,8 +37,9 @@ export const registerUser = async (
       role,
       birthdate,
       gender,
-       phone,
+      phone,
       address,
+      salary,
       createdAt: new Date().toISOString(),
     });
 

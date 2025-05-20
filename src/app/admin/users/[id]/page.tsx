@@ -186,6 +186,39 @@ export default function UserDetailPage() {
               </div>
 
               <div className="mb-4">
+                <p className="text-sm text-gray-500">Төрсөн огноо</p>
+                <p className="text-gray-900">
+                  {new Date(userProfile.birthdate).toLocaleDateString("mn-MN")}
+                </p>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-gray-500">Хүйс</p>
+                <p className="text-gray-900">
+                  {userProfile.gender === "male" 
+                    ? "Эрэгтэй" 
+                    : userProfile.gender === "female" 
+                    ? "Эмэгтэй" 
+                    : "Бусад"}
+                </p>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-gray-500">Утасны дугаар</p>
+                <p className="text-gray-900">{userProfile.phone || "-"}</p>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-gray-500">Гэрийн хаяг</p>
+                <p className="text-gray-900">{userProfile.address || "-"}</p>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-gray-500">Цалин</p>
+                <p className="text-gray-900">{userProfile.salary?.toLocaleString() || "-"} ₮</p>
+              </div>
+
+              <div className="mb-4">
                 <p className="text-sm text-gray-500">Бүртгүүлсэн огноо</p>
                 <p className="text-gray-900">
                   {new Date(userProfile.createdAt).toLocaleDateString("mn-MN")}
@@ -287,7 +320,7 @@ export default function UserDetailPage() {
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {task.incentiveAmount.toLocaleString()} ₮
+                            {(task.incentiveAmount || 0).toLocaleString()} ₮
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {new Date(
