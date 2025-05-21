@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { JSXElementConstructor, Key, ReactElement, ReactNode, ReactPortal, useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
@@ -8,6 +8,8 @@ import { doc, getDoc } from "firebase/firestore";
 import { getTask, updateTask, deleteTask, updateTaskStatus } from "@/lib/tasks";
 import { Task, User } from "@/types";
 import { logoutUser } from "@/lib/auth";
+import { getDownloadURL, ref } from "firebase/storage";
+import { storage } from "@/lib/firebase";
 import TaskCard from "@/components/TaskCard";
 
 export default function EvaluationPage() {
@@ -24,7 +26,8 @@ export default function EvaluationPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [requirements, setRequirements] = useState<any[]>([]);
-
+  const [imageLoading, setImageLoading] = useState(true);
+  const [currentDateTime] = useState("2025-05-21 08:43:01");
 
   const loadData = async () => {
     try {
@@ -74,33 +77,36 @@ export default function EvaluationPage() {
     setRequirements(newRequirements);
   };
 
-  const handleSaveEvaluation = async () => {
-    if (task?.status !== 'completed') {
-      setError('Зөвхөн дууссан даалгаврыг үнэлэх боломжтой');
-      return;
-    }
+ const handleSaveEvaluation = async () => {
+  if (task?.status !== 'completed') {
+    setError('Зөвхөн дууссан даалгаврыг үнэлэх боломжтой');
+    return;
+  }
 
-    setSubmitLoading(true);
-    try {
-      const updatedTask = {
-        ...task,
-        requirements: JSON.stringify(requirements),
-        evaluated: true,
-        evaluatedAt: new Date()
-      };
-      const result = await updateTask(taskId, updatedTask);
-      if (result.success) {
-        await loadData();
-        router.push('/admin/tasks');
-      } else {
-        setError(result.error || 'Хадгалахад алдаа гарлаа');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Хадгалахад алдаа гарлаа');
-    } finally {
-      setSubmitLoading(false);
+  const totalPercentage = requirements.reduce((sum, req) => sum + (req.percentage || 0), 0);
+
+  setSubmitLoading(true);
+  try {
+    const updatedTask = {
+      ...task,
+      requirements: JSON.stringify(requirements),
+      totalPercentage, // ← нийт хувь хадгалж байна
+      evaluated: true,
+      evaluatedAt: new Date()
+    };
+    const result = await updateTask(taskId, updatedTask);
+    if (result.success) {
+      await loadData();
+      router.push('/admin/tasks');
+    } else {
+      setError(result.error || 'Хадгалахад алдаа гарлаа');
     }
-  };
+  } catch (err: any) {
+    setError(err.message || 'Хадгалахад алдаа гарлаа');
+  } finally {
+    setSubmitLoading(false);
+  }
+};
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -152,14 +158,13 @@ export default function EvaluationPage() {
     }
   };
   
-
   const handleStatusUpdate = async () => {
     await loadData();
   };
+  
   const handleCancel = () => {
     router.push("/admin/tasks");
   };
-
 
   if (loading) {
     return (
@@ -203,6 +208,7 @@ export default function EvaluationPage() {
             Үнэлгээний самбар
           </h1>
           <div className="flex items-center space-x-4">
+            <div className="text-sm font-medium text-gray-500">{currentDateTime}</div>
             <button
               onClick={() => router.push("/admin/tasks")}
               className="px-3 py-1 text-sm font-medium text-blue-600 bg-white rounded-md border border-blue-600 hover:bg-blue-50"
@@ -270,6 +276,39 @@ export default function EvaluationPage() {
                 )}
               </div>
 
+              {/* {task.fileUrl && task.fileType && task.fileType.startsWith('image/') && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-medium mb-2">Хавсаргасан зураг:</h3>
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="relative">
+                      {imageLoading && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        </div>
+                      )}
+                      <img 
+                        src={task.fileUrl}
+                        alt={task.fileName || "Хавсаргасан зураг"}
+                        className="w-full max-h-[400px] object-contain"
+                        onLoad={() => setImageLoading(false)}
+                        onError={() => setImageLoading(false)}
+                      />
+                    </div>
+                    <div className="p-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
+                      <span className="text-sm text-gray-500">{task.fileName || "Зураг"}</span>
+                      <a 
+                        href={task.fileUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-sm text-blue-600 hover:text-blue-800"
+                      >
+                        Зургийг өөр цонхонд нээх
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )} */}
+
               {task.requirements ? (
                 (() => {
                   let requirementsArray = requirements;
@@ -306,12 +345,38 @@ export default function EvaluationPage() {
                         </tbody>
                       </table>
                       <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                        <div className="flex justify-between items-center">
+                        <div className="flex justify-between items-center mb-4">
                           <span className="text-lg font-medium text-gray-700">Нийт үнэлгээ:</span>
+                          
                           <span className="text-xl font-bold text-blue-600">
                             {requirementsArray.reduce((sum, req) => sum + (parseInt(req.completed) || 0), 0)}%
                           </span>
                         </div>
+                        
+                        {/* Display evaluation image if available */}
+                        {task.fileUrl && task.fileType && task.fileType.startsWith('image/') && (
+                          <div className="mt-4 border border-gray-200 rounded-lg overflow-hidden bg-white">
+                            <div className="p-2 bg-gray-50 border-b border-gray-200">
+                              <h4 className="text-sm font-medium text-gray-700">Үнэлгээний зураг:</h4>
+                            </div>
+                            <div className="p-4">
+                              <div className="relative">
+                                {imageLoading && (
+                                  <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                                  </div>
+                                )}
+                                <img 
+                                  src={task.fileUrl}
+                                  alt={task.fileName || "Үнэлгээний зураг"}
+                                  className="w-full max-h-[300px] object-contain"
+                                  onLoad={() => setImageLoading(false)}
+                                  onError={() => setImageLoading(false)}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -373,7 +438,7 @@ export default function EvaluationPage() {
 
                   <button
                     onClick={() =>
-                      router.push(`/admin/users/${assignedUser.uid}`)
+                      router.push('/admin/users/${assignedUser.uid')
                     }
                     className="mt-4 px-3 py-1 text-sm font-medium text-blue-600 bg-white rounded-md border border-blue-600 hover:bg-blue-50"
                   >
@@ -384,6 +449,31 @@ export default function EvaluationPage() {
                 <p className="text-gray-600">Хариуцагч олдсонгүй</p>
               )}
             </div>
+            
+            {/* File information section */}
+            {task.fileUrl && !task.fileType?.startsWith('image/') && (
+              <div className="bg-white shadow rounded-lg p-6 mb-6">
+                <h3 className="text-lg font-medium mb-4">Хавсаргасан файл</h3>
+                <div className="flex items-center p-3 bg-gray-50 rounded-md">
+                  <svg className="w-8 h-8 text-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <div>
+                    <a 
+                      href={task.fileUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      {task.fileName || "Хавсаргасан файл харах"}
+                    </a>
+                    <p className="text-sm text-gray-500">
+                      {task.fileType || "Unknown file type"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </main>

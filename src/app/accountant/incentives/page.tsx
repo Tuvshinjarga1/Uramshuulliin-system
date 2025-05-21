@@ -99,12 +99,6 @@ export default function IncentivesPage() {
              evaluatedDate.getFullYear() === selectedYear;
     });
 
-    // Calculate overall average rating for all tasks
-    const totalRating = filteredTasks.reduce((sum, task) => sum + (task.rating || 0), 0);
-    const totalTasks = filteredTasks.length;
-    const overallAverageRating = totalTasks > 0 ? totalRating / totalTasks : 0;
-    const averagePercentage = (overallAverageRating / 5) * 100; // Convert to percentage (assuming max rating is 5)
-
     // Group tasks by user
     const userTasks = filteredTasks.reduce((acc, task) => {
       if (!acc[task.assignedTo]) {
@@ -121,19 +115,25 @@ export default function IncentivesPage() {
       const taskCount = userTasks.length;
       const baseSalary = user?.salary || 0;
 
+      // Calculate user's total rating and average rating
+      const userTotalRating = userTasks.reduce((sum, task) => sum + (task.rating || 0), 0);
+      const userAverageRating = taskCount > 0 ? userTotalRating / taskCount : 0;
+
       let totalAmount = 0;
       let finalSalary = baseSalary;
 
-      // Calculate incentive based on average percentage
-      if (averagePercentage < 70) {
+      // Calculate incentive based on user's average rating
+      const userAveragePercentage = (userAverageRating / 5) * 100; // Convert to percentage (assuming max rating is 5)
+
+      if (userAveragePercentage < 70) {
         // If below 70%, no incentive
         totalAmount = 0;
         finalSalary = baseSalary;
-      } else if (averagePercentage >= 70 && averagePercentage <= 80) {
+      } else if (userAveragePercentage >= 70 && userAveragePercentage <= 80) {
         // If between 70-80%, 10% of base salary as incentive
         totalAmount = baseSalary * 0.1;
         finalSalary = baseSalary;
-      } else if (averagePercentage > 80) {
+      } else if (userAveragePercentage > 80) {
         // If above 80%, 20% of base salary as incentive
         totalAmount = baseSalary * 0.2;
         finalSalary = baseSalary;
@@ -146,9 +146,9 @@ export default function IncentivesPage() {
         year: selectedYear,
         totalAmount,
         taskCount,
-        totalRating,
-        averageRating: overallAverageRating,
-        averageAmount: totalAmount / totalTasks,
+        totalRating: userTotalRating,
+        averageRating: userAverageRating,
+        averageAmount: totalAmount / taskCount,
         salary: finalSalary
       };
     });
@@ -246,10 +246,10 @@ export default function IncentivesPage() {
                     Дундаж үнэлгээ
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Нийт урамшуулал
+                    Урамшуулал
                   </th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Үндсэн цалин болон урамшуулал
+                    Нийт цалин
                   </th>
                 </tr>
               </thead>
@@ -271,7 +271,7 @@ export default function IncentivesPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {incentive.totalAmount.toLocaleString()}₮
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {(incentive.salary + incentive.totalAmount).toLocaleString()}₮
                     </td>
                   </tr>
