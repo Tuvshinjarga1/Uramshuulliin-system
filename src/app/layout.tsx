@@ -5,7 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Enkul - Ажилтнуудын Урамшууллын Систем",
+  title: "Ажилтнуудын Урамшууллын Систем",
   description: "Үр дүнд суурилсан урамшууллын систем",
 };
 

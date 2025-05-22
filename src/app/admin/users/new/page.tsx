@@ -14,7 +14,13 @@ interface UserFormData {
   email: string;
   password: string;
   role: string;
+  birthdate: string;
+  gender: string;
+   phone?: string;
+  address?: string;
+  salary?: number;
 }
+
 
 export default function NewUserPage() {
   const router = useRouter();
@@ -30,11 +36,17 @@ export default function NewUserPage() {
     reset,
   } = useForm<UserFormData>({
     defaultValues: {
-      displayName: "",
-      email: "",
-      password: "enkul123",
-      role: "employee",
-    },
+  displayName: "",
+  email: "",
+  password: "enkul123",
+  role: "employee",
+  birthdate: "",
+  gender: "male",
+  phone: "",
+  address: "",
+  salary: 0,
+},
+
   });
 
   useEffect(() => {
@@ -74,11 +86,16 @@ export default function NewUserPage() {
     try {
       // Хэрэглэгч бүртгэх
       const result = await registerUser(
-        data.email,
-        data.password,
-        data.displayName,
-        data.role
-      );
+  data.email,
+  data.password,
+  data.displayName,
+  data.role,
+  data.birthdate,
+  data.gender,
+  data.phone,
+  data.address,
+  data.salary
+);
 
       if (result.success) {
         reset();
@@ -227,6 +244,108 @@ export default function NewUserPage() {
                 </p>
               )}
             </div>
+            <div className="mb-4">
+  <label
+    htmlFor="birthdate"
+    className="block text-sm font-medium text-gray-700 mb-1"
+  >
+    Төрсөн огноо
+  </label>
+  <input
+    id="birthdate"
+    type="date"
+    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+    {...register("birthdate", { required: "Төрсөн огноо оруулна уу" })}
+  />
+  {errors.birthdate && (
+    <p className="mt-1 text-sm text-red-600">{errors.birthdate.message}</p>
+  )}
+</div>
+
+<div className="mb-4">
+  <label
+    htmlFor="gender"
+    className="block text-sm font-medium text-gray-700 mb-1"
+  >
+    Хүйс
+  </label>
+  <select
+    id="gender"
+    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+    {...register("gender", { required: "Хүйс сонгоно уу" })}
+  >
+    <option value="male">Эрэгтэй</option>
+    <option value="female">Эмэгтэй</option>
+    <option value="other">Бусад</option>
+  </select>
+  {errors.gender && (
+    <p className="mt-1 text-sm text-red-600">{errors.gender.message}</p>
+  )}
+</div>
+<div className="mb-4">
+  <label
+    className="block text-sm font-medium text-gray-700 mb-1"
+    htmlFor="phone"
+  >
+    Утасны дугаар
+  </label>
+  <input
+    id="phone"
+    type="text"
+    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+    {...register("phone", {
+      required: "Утасны дугаар оруулна уу",
+      pattern: {
+        value: /^[0-9]{8}$/,
+        message: "Утасны дугаар 8 оронтой тоо байх ёстой",
+      },
+    })}
+  />
+  {errors.phone && (
+    <p className="mt-1 text-sm text-red-600">{errors.phone.message}</p>
+  )}
+</div>
+<div className="mb-4">
+  <label
+    className="block text-sm font-medium text-gray-700 mb-1"
+    htmlFor="address"
+  >
+    Гэрийн хаяг
+  </label>
+  <input
+    id="address"
+    type="text"
+    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+    {...register("address", { required: "Хаяг оруулна уу" })}
+  />
+  {errors.address && (
+    <p className="mt-1 text-sm text-red-600">{errors.address.message}</p>
+  )}
+</div>
+
+<div className="mb-4">
+  <label
+    className="block text-sm font-medium text-gray-700 mb-1"
+    htmlFor="salary"
+  >
+    Цалин
+  </label>
+  <input
+    id="salary"
+    type="number"
+    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+    {...register("salary", { 
+      required: "Цалин оруулна уу",
+      min: {
+        value: 0,
+        message: "Цалин 0-ээс их байх ёстой"
+      }
+    })}
+  />
+  {errors.salary && (
+    <p className="mt-1 text-sm text-red-600">{errors.salary.message}</p>
+  )}
+</div>
 
             <div className="flex justify-end space-x-3">
               <button

@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { JSXElementConstructor, Key, ReactElement, ReactNode, ReactPortal, useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
@@ -8,9 +8,11 @@ import { doc, getDoc } from "firebase/firestore";
 import { getTask, updateTask, deleteTask, updateTaskStatus } from "@/lib/tasks";
 import { Task, User } from "@/types";
 import { logoutUser } from "@/lib/auth";
+import { getDownloadURL, ref } from "firebase/storage";
+import { storage } from "@/lib/firebase";
 import TaskCard from "@/components/TaskCard";
 
-export default function TaskDetailPage() {
+export default function EvaluationPage() {
   const router = useRouter();
   const params = useParams();
   const taskId = params.id as string;
@@ -22,6 +24,10 @@ export default function TaskDetailPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [statusUpdateLoading, setStatusUpdateLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [requirements, setRequirements] = useState<any[]>([]);
+  const [imageLoading, setImageLoading] = useState(true);
+  const [currentDateTime] = useState("2025-05-21 08:43:01");
 
   const loadData = async () => {
     try {
@@ -30,6 +36,16 @@ export default function TaskDetailPage() {
       if (taskResult.success && taskResult.task) {
         const taskData = taskResult.task as Task;
         setTask(taskData);
+        
+        // Requirements-ийг parse хийх
+        if (taskData.requirements) {
+          try {
+            const parsedRequirements = JSON.parse(taskData.requirements);
+            setRequirements(parsedRequirements);
+          } catch (error) {
+            setRequirements([]);
+          }
+        }
 
         // Хариуцсан хэрэглэгчийн мэдээлэл авах
         if (taskData.assignedTo) {
@@ -51,6 +67,53 @@ export default function TaskDetailPage() {
       setLoading(false);
     }
   };
+
+  const handleRequirementChange = (index: number, value: string | number) => {
+  const newRequirements = [...requirements];
+  newRequirements[index] = {
+ ...newRequirements[index],
+   completed: Number(value),               // ← энд Number() нэмж өглөө
+   percentage: Number(newRequirements[index].percentage)
+ };
+  setRequirements(newRequirements);
+};
+
+
+ const handleSaveEvaluation = async () => {
+  if (task?.status !== 'completed') {
+    setError('Зөвхөн дууссан даалгаврыг үнэлэх боломжтой');
+    return;
+  }
+
+ const totalPercentage = requirements.reduce((sum, req) => {
+ // `completed` талбарт таны үнэлгээ орж байна, тиймээс тэрний нийлбэрийг авъя
+  const c = Number(req.completed);
+  return sum + (isNaN(c) ? 0 : c);
+ }, 0);
+
+
+  setSubmitLoading(true);
+  try {
+    const updatedTask = {
+      ...task,
+      requirements: JSON.stringify(requirements),
+      totalPercentage, // ← нийт хувь хадгалж байна
+      evaluated: true,
+      evaluatedAt: new Date()
+    };
+    const result = await updateTask(taskId, updatedTask);
+    if (result.success) {
+      await loadData();
+      router.push('/admin/tasks');
+    } else {
+      setError(result.error || 'Хадгалахад алдаа гарлаа');
+    }
+  } catch (err: any) {
+    setError(err.message || 'Хадгалахад алдаа гарлаа');
+  } finally {
+    setSubmitLoading(false);
+  }
+};
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -101,9 +164,13 @@ export default function TaskDetailPage() {
       setDeleteLoading(false);
     }
   };
-
+  
   const handleStatusUpdate = async () => {
     await loadData();
+  };
+  
+  const handleCancel = () => {
+    router.push("/admin/tasks");
   };
 
   if (loading) {
@@ -145,9 +212,10 @@ export default function TaskDetailPage() {
       <header className="bg-white shadow">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
           <h1 className="text-3xl font-bold text-gray-900">
-            Даалгаврын дэлгэрэнгүй
+            Үнэлгээний самбар
           </h1>
           <div className="flex items-center space-x-4">
+            <div className="text-sm font-medium text-gray-500">{currentDateTime}</div>
             <button
               onClick={() => router.push("/admin/tasks")}
               className="px-3 py-1 text-sm font-medium text-blue-600 bg-white rounded-md border border-blue-600 hover:bg-blue-50"
@@ -200,6 +268,7 @@ export default function TaskDetailPage() {
                   <p className="text-sm text-gray-500">Дуусах хугацаа</p>
                   <p className="font-medium">{formatDate(task.dueDate)}</p>
                 </div>
+              
                 <div>
                   <p className="text-sm text-gray-500">Үүсгэсэн огноо</p>
                   <p className="font-medium">{formatDate(task.createdAt)}</p>
@@ -214,14 +283,42 @@ export default function TaskDetailPage() {
                 )}
               </div>
 
+              {/* {task.fileUrl && task.fileType && task.fileType.startsWith('image/') && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-medium mb-2">Хавсаргасан зураг:</h3>
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="relative">
+                      {imageLoading && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        </div>
+                      )}
+                      <img 
+                        src={task.fileUrl}
+                        alt={task.fileName || "Хавсаргасан зураг"}
+                        className="w-full max-h-[400px] object-contain"
+                        onLoad={() => setImageLoading(false)}
+                        onError={() => setImageLoading(false)}
+                      />
+                    </div>
+                    <div className="p-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
+                      <span className="text-sm text-gray-500">{task.fileName || "Зураг"}</span>
+                      <a 
+                        href={task.fileUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-sm text-blue-600 hover:text-blue-800"
+                      >
+                        Зургийг өөр цонхонд нээх
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )} */}
+
               {task.requirements ? (
                 (() => {
-                  let requirementsArray = [];
-                  try {
-                    requirementsArray = JSON.parse(task.requirements);
-                  } catch (error) {
-                    requirementsArray = [];
-                  }
+                  let requirementsArray = requirements;
 
                   return requirementsArray.length > 0 ? (
                     <div className="overflow-x-auto">
@@ -230,17 +327,65 @@ export default function TaskDetailPage() {
                           <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Тавигдах шаардлага</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Үнэлгээ(%)</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Гүйцэтгэсэн байдал</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                          {requirementsArray.map((req: any, index: number) => (
-                            <tr key={req.id || index} className="hover:bg-gray-50">
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{req.field1}</td>
+  {requirements.map((req, idx) => (
+    <tr key={idx} className="hover:bg-gray-50">
+     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{req.field1}</td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{req.field2}</td>
-                            </tr>
-                          ))}
-                        </tbody>
+      <td className="px-6 py-4 text-sm text-gray-700">
+        <input
+          type="number"
+          min={0}
+          max={100}
+          className="border rounded px-2 py-1 w-24"
+          value={req.completed ?? ''}            
+          onChange={(e) => handleRequirementChange(idx, Number(e.target.value))}
+          disabled={task?.status !== 'completed'}
+          placeholder="0–100"
+        />
+      </td>
+    </tr>
+  ))}
+</tbody>
+
                       </table>
+                      <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                        <div className="flex justify-between items-center mb-4">
+                          <span className="text-lg font-medium text-gray-700">Нийт үнэлгээ:</span>
+                          
+                          <span className="text-xl font-bold text-blue-600">
+                           {requirementsArray.reduce((sum, req) => sum + (Number(req.completed) || 0), 0)}%
+                          </span>
+                        </div>
+                        
+                        {/* Display evaluation image if available */}
+                        {task.fileUrl && task.fileType && task.fileType.startsWith('image/') && (
+                          <div className="mt-4 border border-gray-200 rounded-lg overflow-hidden bg-white">
+                            <div className="p-2 bg-gray-50 border-b border-gray-200">
+                              <h4 className="text-sm font-medium text-gray-700">Үнэлгээний зураг:</h4>
+                            </div>
+                            <div className="p-4">
+                              <div className="relative">
+                                {imageLoading && (
+                                  <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                                  </div>
+                                )}
+                                <img 
+                                  src={task.fileUrl}
+                                  alt={task.fileName || "Үнэлгээний зураг"}
+                                  className="w-full max-h-[300px] object-contain"
+                                  onLoad={() => setImageLoading(false)}
+                                  onError={() => setImageLoading(false)}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <p className="text-sm text-gray-500">Шаардлага оруулаагүй байна.</p>
@@ -250,35 +395,32 @@ export default function TaskDetailPage() {
                 <p className="text-sm text-gray-500">Шаардлага оруулаагүй байна.</p>
               )}
 
-              <div className="flex mt-6 space-x-2">
+              {task.status === 'completed' && !task.evaluated && (
+                <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                  <p className="text-blue-700">Энэ даалгавар дууссан тул үнэлгээ өгөх боломжтой.</p>
+                </div>
+              )}
+
+              <div className="flex justify-end space-x-3 mt-4">
                 <button
-                  onClick={() => router.push(`/admin/tasks/${taskId}/edit`)}
-                  disabled={task.status === "completed"}
-                  className={`px-4 py-2 text-sm font-medium text-white ${
-                    task.status === "completed" 
-                      ? "bg-gray-400 cursor-not-allowed" 
-                      : "bg-blue-600 hover:bg-blue-700"
-                  } rounded-md shadow-sm`}
+                  type="button"
+                  onClick={handleCancel}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50"
                 >
-                  {task.status === "completed" ? "Дууссан даалгавар" : "Засах"}
+                  Цуцлах
                 </button>
-                <button
-                  onClick={handleDeleteTask}
-                  disabled={deleteLoading || task.status === "completed"}
-                  className={`px-4 py-2 text-sm font-medium text-white ${
-                    task.status === "completed" || deleteLoading
-                      ? "bg-gray-400 cursor-not-allowed" 
-                      : "bg-red-600 hover:bg-red-700"
-                  } rounded-md shadow-sm`}
-                >
-                  {deleteLoading ? "Устгаж байна..." : "Устгах"}
-                </button>
-                 <button
-                  onClick={() => router.push(`/admin/tasks/${taskId}/evaluation`)}
-                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md shadow-sm hover:bg-green-700"
-                >
-                  Үнэлгээ өгөх
-                </button>
+                {task.status === 'completed' && !task.evaluated && (
+                  <button
+                    type="button"
+                    onClick={handleSaveEvaluation}
+                    disabled={submitLoading}
+                    className={`px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md shadow-sm hover:bg-blue-700 ${
+                      submitLoading ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {submitLoading ? 'Хадгалж байна...' : 'Үнэлгээ хадгалах'}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -304,7 +446,7 @@ export default function TaskDetailPage() {
 
                   <button
                     onClick={() =>
-                      router.push(`/admin/users/${assignedUser.uid}`)
+                      router.push('/admin/users/${assignedUser.uid')
                     }
                     className="mt-4 px-3 py-1 text-sm font-medium text-blue-600 bg-white rounded-md border border-blue-600 hover:bg-blue-50"
                   >
@@ -315,11 +457,31 @@ export default function TaskDetailPage() {
                 <p className="text-gray-600">Хариуцагч олдсонгүй</p>
               )}
             </div>
-
-            <div className="bg-white shadow rounded-lg p-6">
-              <h3 className="text-lg font-medium mb-4">Төлөв шинэчлэх</h3>
-              <TaskCard task={task} onStatusChange={handleStatusUpdate} />
-            </div>
+            
+            {/* File information section */}
+            {task.fileUrl && !task.fileType?.startsWith('image/') && (
+              <div className="bg-white shadow rounded-lg p-6 mb-6">
+                <h3 className="text-lg font-medium mb-4">Хавсаргасан файл</h3>
+                <div className="flex items-center p-3 bg-gray-50 rounded-md">
+                  <svg className="w-8 h-8 text-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <div>
+                    <a 
+                      href={task.fileUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      {task.fileName || "Хавсаргасан файл харах"}
+                    </a>
+                    <p className="text-sm text-gray-500">
+                      {task.fileType || "Unknown file type"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </main>

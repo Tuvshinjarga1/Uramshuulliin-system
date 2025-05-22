@@ -7,9 +7,15 @@ export interface User {
   role: "employee" | "admin" | "accountant";
   createdAt: string;
   updatedAt?: string;
+  salary?: number;
+  birthdate?: string;
+  gender?: string;
+  phone?: string;
+  address?: string;
 }
 
 export interface Task {
+  requirements: any;
   id: string;
   title: string;
   description: string;
@@ -22,6 +28,15 @@ export interface Task {
   createdAt: Timestamp | Date;
   updatedAt?: Timestamp | Date;
   completedAt?: Timestamp | Date;
+  evaluated?: boolean;
+  evaluatedAt?: Timestamp | Date;
+  totalPercentage?: number;
+  rating?: number;
+  fileUrl?: string;
+  fileName?: string;
+  fileType?: string;
+  fileSize?: number;
+  uploadedAt?: string;
 }
 
 export interface IncentiveType {

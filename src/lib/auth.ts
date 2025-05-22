@@ -13,10 +13,14 @@ export const registerUser = async (
   email: string,
   password: string,
   displayName: string,
-  role: string = "employee"
+  role: string = "employee",
+  birthdate: string,
+  gender: string,
+  phone?: string,
+  address?: string,
+  salary?: number
 ) => {
   try {
-    // Хэрэглэгч үүсгэх
     const userCredential = await createUserWithEmailAndPassword(
       auth,
       email,
@@ -24,15 +28,18 @@ export const registerUser = async (
     );
     const user = userCredential.user;
 
-    // Нэр шинэчлэх
     await updateProfile(user, { displayName });
 
-    // Firestore-д хэрэглэгчийн мэдээлэл хадгалах
     await setDoc(doc(db, "users", user.uid), {
       uid: user.uid,
       email,
       displayName,
       role,
+      birthdate,
+      gender,
+      phone,
+      address,
+      salary,
       createdAt: new Date().toISOString(),
     });
 
@@ -41,6 +48,7 @@ export const registerUser = async (
     return { success: false, error: error.message };
   }
 };
+
 
 // Нэвтрэх
 export const loginUser = async (email: string, password: string) => {
@@ -112,3 +120,11 @@ export const deleteUserProfile = async (uid: string) => {
     return { success: false, error: error.message };
   }
 };
+
+
+
+
+
+
+
+

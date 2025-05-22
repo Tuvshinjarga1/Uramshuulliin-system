@@ -31,6 +31,16 @@ export default function UserDetailPage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const calculateTotalEvaluation = (task: Task) => {
+    if (!task.requirements) return 0;
+    try {
+      const requirements = JSON.parse(task.requirements);
+      return requirements.reduce((sum: number, req: any) => sum + (parseInt(req.completed) || 0), 0);
+    } catch (error) {
+      return 0;
+    }
+  };
+
   const loadData = async () => {
     try {
       // Хэрэглэгчийн мэдээлэл авах
@@ -186,6 +196,39 @@ export default function UserDetailPage() {
               </div>
 
               <div className="mb-4">
+                <p className="text-sm text-gray-500">Төрсөн огноо</p>
+                <p className="text-gray-900">
+                  {new Date(userProfile.birthdate).toLocaleDateString("mn-MN")}
+                </p>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-gray-500">Хүйс</p>
+                <p className="text-gray-900">
+                  {userProfile.gender === "male" 
+                    ? "Эрэгтэй" 
+                    : userProfile.gender === "female" 
+                    ? "Эмэгтэй" 
+                    : "Бусад"}
+                </p>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-gray-500">Утасны дугаар</p>
+                <p className="text-gray-900">{userProfile.phone || "-"}</p>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-gray-500">Гэрийн хаяг</p>
+                <p className="text-gray-900">{userProfile.address || "-"}</p>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-sm text-gray-500">Цалин</p>
+                <p className="text-gray-900">{userProfile.salary?.toLocaleString() || "-"} ₮</p>
+              </div>
+
+              <div className="mb-4">
                 <p className="text-sm text-gray-500">Бүртгүүлсэн огноо</p>
                 <p className="text-gray-900">
                   {new Date(userProfile.createdAt).toLocaleDateString("mn-MN")}
@@ -250,6 +293,12 @@ export default function UserDetailPage() {
                         >
                           Хугацаа
                         </th>
+                        <th
+                          scope="col"
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        >
+                          Үнэлгээ
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -257,7 +306,7 @@ export default function UserDetailPage() {
                         <tr
                           key={task.id}
                           className="cursor-pointer hover:bg-gray-50"
-                          onClick={() => router.push(`/admin/tasks/${task.id}`)}
+                          onClick={() => router.push(`/admin/tasks/${task.id}/evaluation`)}
                         >
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900">
@@ -287,89 +336,21 @@ export default function UserDetailPage() {
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {task.incentiveAmount.toLocaleString()} ₮
+                            {(task.incentiveAmount || 0).toLocaleString()} ₮
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {new Date(
                               task.dueDate.toString()
                             ).toLocaleDateString("mn-MN")}
                           </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-
-            {/* Урамшууллын хэсэг */}
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Урамшуулал</h2>
-
-              {incentives.length === 0 ? (
-                <p className="text-gray-600">
-                  Одоогоор урамшууллын мэдээлэл байхгүй байна.
-                </p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th
-                          scope="col"
-                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                        >
-                          Сар, жил
-                        </th>
-                        <th
-                          scope="col"
-                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                        >
-                          Даалгаврын тоо
-                        </th>
-                        <th
-                          scope="col"
-                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                        >
-                          Нийт дүн
-                        </th>
-                        <th
-                          scope="col"
-                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                        >
-                          Төлөв
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {incentives.map((incentive) => (
-                        <tr key={incentive.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">{`${incentive.year}-${incentive.month}`}</div>
-                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {incentive.taskCount}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {incentive.totalAmount.toLocaleString()} ₮
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span
-                              className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                              ${
-                                incentive.status === "approved"
-                                  ? "bg-green-100 text-green-800"
-                                  : incentive.status === "rejected"
-                                  ? "bg-red-100 text-red-800"
-                                  : "bg-yellow-100 text-yellow-800"
-                              }`}
-                            >
-                              {incentive.status === "approved"
-                                ? "Баталгаажсан"
-                                : incentive.status === "rejected"
-                                ? "Цуцлагдсан"
-                                : "Хүлээгдэж буй"}
-                            </span>
+                            {task.evaluated ? (
+                              <span className="text-green-600 font-medium">
+                                {calculateTotalEvaluation(task)}%
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">Үнэлээгүй</span>
+                            )}
                           </td>
                         </tr>
                       ))}

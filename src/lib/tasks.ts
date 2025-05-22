@@ -106,7 +106,8 @@ export const updateTask = async (taskId: string, data: any) => {
 export const updateTaskStatus = async (
   taskId: string,
   status: string,
-  comment: string = ""
+  comment: string = "",
+  fileUrl?: string
 ) => {
   try {
     const updateData: any = {
@@ -118,6 +119,9 @@ export const updateTaskStatus = async (
     // Даалгаврыг дууссан гэж тэмдэглэх үед дууссан огноог хадгалах
     if (status === "completed") {
       updateData.completedAt = Timestamp.now();
+      if (fileUrl) {
+        updateData.fileUrl = fileUrl;
+      }
     }
 
     await updateDoc(doc(db, "tasks", taskId), updateData);
@@ -138,7 +142,6 @@ export const deleteTask = async (taskId: string) => {
   }
 };
 
-// Тухайн сард хэрэглэгчийн дууссан даалгавруудыг авах
 export async function getUserCompletedTasks(
   userId: string,
   month: string,
@@ -154,15 +157,20 @@ export async function getUserCompletedTasks(
 
     const querySnapshot = await getDocs(q);
     const tasks: Task[] = [];
+    let totalScore = 0;
 
     querySnapshot.forEach((doc) => {
       const taskData = doc.data();
+
+      // completedAt байхгүй бол алгас
+      if (!taskData.completedAt) return;
+
       const taskDate =
         taskData.completedAt instanceof Timestamp
           ? taskData.completedAt.toDate()
           : new Date(taskData.completedAt);
 
-      // Зөвхөн тухайн сарын даалгаврууд
+      // Зөвхөн тухайн сард дууссан даалгаврууд
       if (
         taskDate.getMonth() + 1 === parseInt(month) &&
         taskDate.getFullYear() === parseInt(year)
@@ -171,12 +179,27 @@ export async function getUserCompletedTasks(
           id: doc.id,
           ...taskData,
         } as Task);
+
+        // requirements-аас нийт score тооцоолох
+        if (Array.isArray(taskData.requirements)) {
+          taskData.requirements.forEach((req: any) => {
+            if (typeof req.score === "number") {
+              totalScore += req.score;
+            }
+          });
+        }
       }
     });
 
-    return { success: true, tasks };
+    return {
+      success: true,
+      tasks,
+      totalScore,
+    };
   } catch (error) {
     console.error("Error getting completed tasks:", error);
     return { success: false, error: "Даалгаврын мэдээлэл авахад алдаа гарлаа" };
   }
 }
+
+
