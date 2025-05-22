@@ -333,8 +333,8 @@ export default function EvaluationPage() {
                         <tbody className="divide-y divide-gray-200">
   {requirements.map((req, idx) => (
     <tr key={idx} className="hover:bg-gray-50">
-      <td className="px-6 py-4 text-sm text-gray-700">{req.title}</td>
-      <td className="px-6 py-4 text-sm text-gray-700">{req.percentage}%</td>
+     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{req.field1}</td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{req.field2}</td>
       <td className="px-6 py-4 text-sm text-gray-700">
         <input
           type="number"

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -7,6 +7,8 @@ import { doc, getDoc, collection, getDocs, Timestamp } from "firebase/firestore"
 import { getAllTasks } from "@/lib/tasks";
 import { User, Task } from "@/types";
 import { logoutUser } from "@/lib/auth";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 interface GroupedIncentive {
   userId: string;
@@ -31,6 +33,7 @@ export default function IncentivesPage() {
   const [incentives, setIncentives] = useState<GroupedIncentive[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const printRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -40,162 +43,146 @@ export default function IncentivesPage() {
           const userData = userDoc.data();
           if (userData.role === "accountant") {
             setUser({ uid: currentUser.uid, ...userData });
-
             const usersSnapshot = await getDocs(collection(db, "users"));
-            const usersData = usersSnapshot.docs.map((doc) => ({ uid: doc.id, ...doc.data() })) as User[];
-            setUsers(usersData);
-
+            setUsers(usersSnapshot.docs.map(d => ({ uid: d.id, ...d.data() })) as User[]);
             const tasksResult = await getAllTasks();
-            if (tasksResult.success) {
-              setTasks(tasksResult.tasks as Task[]);
-            }
+            if (tasksResult.success) setTasks(tasksResult.tasks as Task[]);
           } else {
-            await logoutUser();
-            router.push("/login");
+            await logoutUser(); router.push("/login");
           }
         } else {
-          await logoutUser();
-          router.push("/login");
+          await logoutUser(); router.push("/login");
         }
       } else {
         router.push("/login");
       }
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, [router]);
 
-  useEffect(() => {
-    calculateIncentives();
-  }, [selectedMonth, selectedYear, tasks, users]);
+  useEffect(() => calculateIncentives(), [selectedMonth, selectedYear, tasks, users]);
 
   const calculateIncentives = () => {
-    const filteredTasks = tasks.filter(task => {
-      if (!task.evaluated || !task.evaluatedAt) return false;
-      const evaluatedDate = task.evaluatedAt instanceof Timestamp ? task.evaluatedAt.toDate() : task.evaluatedAt;
-      return evaluatedDate.getMonth() + 1 === selectedMonth && evaluatedDate.getFullYear() === selectedYear;
-    });
+    const filtered = tasks.filter(t => t.evaluated && t.evaluatedAt)
+      .filter(t => {
+        let evaluatedDate: Date;
+        try {
+          if (t.evaluatedAt instanceof Timestamp) {
+            evaluatedDate = t.evaluatedAt.toDate();
+          } else if ((t.evaluatedAt as any)?.toDate instanceof Function) {
+            evaluatedDate = (t.evaluatedAt as any).toDate();
+          } else {
+            evaluatedDate = new Date(t.evaluatedAt as any);
+          }
+        } catch {
+          return false;
+        }
+        return (
+          evaluatedDate.getMonth() + 1 === selectedMonth &&
+          evaluatedDate.getFullYear() === selectedYear
+        );
+      });
 
-    const userTasks = filteredTasks.reduce((acc, task) => {
-      if (!acc[task.assignedTo]) acc[task.assignedTo] = [];
-      acc[task.assignedTo].push(task);
+    const grouped = filtered.reduce((acc, t) => {
+      acc[t.assignedTo] = acc[t.assignedTo] || [];
+      acc[t.assignedTo].push(t);
       return acc;
-    }, {} as { [key: string]: Task[] });
+    }, {} as Record<string, Task[]>);
 
-    const calculated = Object.entries(userTasks).map(([userId, tasks]) => {
-      const userInfo = users.find(u => u.uid === userId);
-      const userName = userInfo?.displayName || "Олдсонгүй";
-      // Ensure salary is numeric
-      const baseSalary = Number(userInfo?.salary) || 0;
-      const count = tasks.length;
-
-      const totalPercentage = tasks.reduce((sum, t) => sum + (t.totalPercentage || 0), 0);
-      const averagePercentage = count > 0 ? totalPercentage / count : 0;
-
-      // Calculate incentive amount
-      let incentiveAmount = 0;
-      if (averagePercentage >= 70 && averagePercentage <= 80) {
-        incentiveAmount = baseSalary * 0.1;
-      } else if (averagePercentage > 80) {
-        incentiveAmount = baseSalary * 0.2;
-      }
-
-      // Compute numeric total salary
-      const totalSalary = baseSalary + incentiveAmount;
-
+    setIncentives(Object.entries(grouped).map(([uid, userTasks]) => {
+      const info = users.find(u => u.uid === uid);
+      const base = Number(info?.salary) || 0;
+      const totalPct = userTasks.reduce((sum, task) => sum + (task.totalPercentage || 0), 0);
+      const avgPct = userTasks.length ? totalPct / userTasks.length : 0;
+      const incAmt = avgPct > 80 ? base * 0.2 : avgPct >= 70 ? base * 0.1 : 0;
       return {
-        userId,
-        userName,
+        userId: uid,
+        userName: info?.displayName || 'Өгөгдөлгүй',
         month: selectedMonth,
         year: selectedYear,
-        baseSalary,
-        incentiveAmount,
-        taskCount: count,
-        totalPercentage,
-        averagePercentage,
-        averageAmount: count > 0 ? incentiveAmount / count : 0,
-        totalSalary
-      } as GroupedIncentive;
+        baseSalary: base,
+        incentiveAmount: incAmt,
+        taskCount: userTasks.length,
+        totalPercentage: totalPct,
+        averagePercentage: avgPct,
+        averageAmount: userTasks.length ? incAmt / userTasks.length : 0,
+        totalSalary: base + incAmt
+      };
+    }));
+  };
+
+  const handleLogout = async () => { await logoutUser(); router.push("/login"); };
+  const handleBack = () => router.back();
+
+  const handleDownloadPDF = async () => {
+    if (!printRef.current) return;
+    const element = printRef.current;
+    const canvas = await html2canvas(element, {
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      foreignObjectRendering: true
     });
-
-    setIncentives(calculated);
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF({ orientation: 'landscape' });
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    pdf.save(`Incentives_${selectedYear}_${selectedMonth}.pdf`);
   };
 
-  const handleLogout = async () => {
-    await logoutUser();
-    router.push("/login");
-  };
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center">Ачаалж байна...</div>;
+  }
 
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div>Ачаалж байна...</div>
-    </div>
-  );
+  const totalEmployees = incentives.length;
+  const totalIncentives = incentives.reduce((sum, i) => sum + i.incentiveAmount, 0);
+  const totalSalarySum = incentives.reduce((sum, i) => sum + i.totalSalary, 0);
 
   return (
-    <div className="min-h-screen bg-gray-100 text-black">
+    <div ref={printRef} className="min-h-screen bg-gray-100 text-black">
       <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Урамшуулал</h1>
+        <div className="max-w-7xl mx-auto py-6 px-4 flex justify-between items-center">
+          <h1 className="text-3xl font-bold">Урамшуулал</h1>
           <div className="flex items-center space-x-4">
-            <div className="text-sm font-medium text-gray-600">
-              {user?.displayName} (Нягтлан)
-            </div>
-            <button onClick={handleLogout} className="px-3 py-1 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">
-              Гарах
-            </button>
+            <span className="text-sm text-gray-600">{user?.displayName} (Нягтлан)</span>
+            <button onClick={handleLogout} className="px-3 py-1 text-sm text-white bg-red-600 rounded hover:bg-red-700">Гарах</button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <div className="mb-6 flex items-center space-x-4">
-            <div>
-              <label htmlFor="month" className="block text-sm font-medium text-gray-700">Сар</label>
-              <select id="month" value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
-                  <option key={month} value={month}>{month}-р сар</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="year" className="block text-sm font-medium text-gray-700">Он</label>
-              <select id="year" value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(year => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </select>
-            </div>
+      <main className="max-w-7xl mx-auto py-6 px-4">
+        <div className="mb-6 flex space-x-4">
+          <div>
+            <label className="block text-sm">Сар</label>
+            <select value={selectedMonth} onChange={e => setSelectedMonth(+e.target.value)} className="mt-1 block border rounded p-2">
+              {Array.from({ length: 12 }, (_, i) => i + 1).map(m => <option key={m} value={m}>{m}-р сар</option>)}
+            </select>
           </div>
+          <div>
+            <label className="block text-sm">Он</label>
+            <select value={selectedYear} onChange={e => setSelectedYear(+e.target.value)} className="mt-1 block border rounded p-2">
+              {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+        </div>
 
-          <div className="bg-white shadow sm:rounded-lg overflow-hidden">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Хэрэглэгч</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Үндсэн цалин</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Даалгаврын тоо</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Дундаж хувь</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Урамшуулал</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Нийт цалин</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {incentives.map(incentive => (
-                  <tr key={incentive.userId}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{incentive.userName}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{incentive.baseSalary.toLocaleString()}₮</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{incentive.taskCount}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{incentive.averagePercentage.toFixed(1)}%</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{incentive.incentiveAmount.toLocaleString()}₮</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{incentive.totalSalary.toLocaleString()}₮</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="mb-4 flex space-x-2">
+          <button onClick={handleBack} className="px-3 py-1 text-sm text-white bg-blue-600 rounded hover:bg-blue-700">Буцах</button>
+          <button onClick={handleDownloadPDF} className="px-3 py-1 text-sm text-white bg-green-600 rounded hover:bg-green-700">PDF татах</button>
+        </div>
+
+        <div className="mb-6 grid grid-cols-3 gap-4">
+          <div className="bg-white p-4 rounded shadow"><p className="text-sm text-gray-500">Ажилтан тоо</p><p className="text-2xl font-bold">{totalEmployees}</p></div>
+          <div className="bg-white p-4 rounded shadow"><p className="text-sm text-gray-500">Нийт урамшуулал</p><p className="text-2xl font-bold">{totalIncentives.toLocaleString()}₮</p></div>
+          <div className="bg-white p-4 rounded shadow"><p className="text-sm text-gray-500">Нийт цалингийн нийлбэр</p><p className="text-2xl font-bold">{totalSalarySum.toLocaleString()}₮</p></div>
+        </div>
+
+        <div className="bg-white rounded shadow overflow-hidden">
+          <table className="min-w-full">
+            <thead className="bg-gray-50"><tr>{['Хэрэглэгч','Үндсэн цалин','Даалгаврын тоо','Дундаж хувь','Урамшуулал','Нийт цалин'].map(h =><th key={h} className="px-4 py-2 text-left text-xs uppercase text-gray-600">{h}</th>)}</tr></thead>
+            <tbody>{incentives.map(i => (<tr key={i.userId} className="border-t"><td className="px-4 py-2 font-medium">{i.userName}</td><td className="px-4 py-2">{i.baseSalary.toLocaleString()}₮</td><td className="px-4 py-2">{i.taskCount}</td><td className="px-4 py-2">{i.averagePercentage.toFixed(1)}%</td><td className="px-4 py-2">{i.incentiveAmount.toLocaleString()}₮</td><td className="px-4 py-2">{i.totalSalary.toLocaleString()}₮</td></tr>))}</tbody>
+          </table>
         </div>
       </main>
     </div>
