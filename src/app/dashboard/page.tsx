@@ -33,6 +33,22 @@ export default function DashboardPage() {
       return 0;
     }
   };
+  // Үнэлгээ тооцох функц
+function calculateAverageEvaluation(tasks: any[]) {
+  // Үнэлгээтэй даалгавруудыг шүүх
+  const evaluatedTasks = tasks.filter(
+    (task) => task.evaluated === true && typeof task.evaluation === "number"
+  );
+
+  if (evaluatedTasks.length === 0) return 0;
+
+  // Нийт үнэлгээний нийлбэр
+  const total = evaluatedTasks.reduce((sum, task) => sum + task.evaluation, 0);
+
+  // Дундажыг буцаах (2 оронтой бутархай)
+  return (total / evaluatedTasks.length).toFixed(2);
+}
+
   
   const loadUserData = async (userId: string) => {
     // Хэрэглэгчийн даалгаврууд авах
@@ -500,6 +516,11 @@ export default function DashboardPage() {
                     ))}
                   </tbody>
                 </table>
+<div className="mt-4">
+  <span className="text-lg font-medium text-gray-700">
+    Дундаж үнэлгээ: {calculateAverageEvaluation(tasks)}%
+  </span>
+</div>
               </div>
             )}
           </div>

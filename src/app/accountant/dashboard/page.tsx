@@ -89,6 +89,16 @@ export default function AccountantDashboardPage() {
     await logoutUser();
     router.push("/login");
   };
+   const calculateTotalEvaluation = (task: Task) => {
+      if (!task.requirements) return 0;
+      try {
+        const requirements = JSON.parse(task.requirements);
+        return requirements.reduce((sum: number, req: any) => sum + (parseInt(req.completed) || 0), 0);
+      } catch (error) {
+        return 0;
+      }
+    };
+    
 
   const handleCalculateIncentives = () => {
     const currentDate = new Date();
@@ -265,7 +275,7 @@ export default function AccountantDashboardPage() {
                   className="border border-gray-300 rounded-md px-3 py-1 text-sm"
                 />
               
-                <button
+              <button
                   onClick={() => router.push("/accountant/incentives")}
                   className="bg-blue-600 px-4 py-2 text-sm font-medium text-white rounded-md hover:bg-blue-700"
                 >
@@ -313,7 +323,7 @@ export default function AccountantDashboardPage() {
                         scope="col"
                         className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                       >
-                        Үйлдэл
+                     Үнэлгээ
                       </th>
                     </tr>
                   </thead>
@@ -330,14 +340,15 @@ export default function AccountantDashboardPage() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {task.evaluatedAt ? (task.evaluatedAt instanceof Date ? task.evaluatedAt.toLocaleDateString() : task.evaluatedAt.toDate().toLocaleDateString()) : "Тодорхойгүй"}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <button
-                            onClick={() => router.push(`/accountant/tasks/${task.id}/evaluation`)}
-                            className="text-blue-600 hover:text-blue-900"
-                          >
-                            Харах
-                          </button>
-                        </td>
+ <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {task.evaluated ? (
+                              <span className="text-green-600 font-medium">
+                                {calculateTotalEvaluation(task)}%
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">Үнэлээгүй</span>
+                            )}
+                          </td>
                       </tr>
                     ))}
                   </tbody>

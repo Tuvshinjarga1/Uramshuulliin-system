@@ -68,14 +68,16 @@ export default function EvaluationPage() {
     }
   };
 
-  const handleRequirementChange = (index: number, value: string) => {
-    const newRequirements = [...requirements];
-    newRequirements[index] = {
-      ...newRequirements[index],
-      completed: value
-    };
-    setRequirements(newRequirements);
-  };
+  const handleRequirementChange = (index: number, value: string | number) => {
+  const newRequirements = [...requirements];
+  newRequirements[index] = {
+ ...newRequirements[index],
+   completed: Number(value),               // ← энд Number() нэмж өглөө
+   percentage: Number(newRequirements[index].percentage)
+ };
+  setRequirements(newRequirements);
+};
+
 
  const handleSaveEvaluation = async () => {
   if (task?.status !== 'completed') {
@@ -83,7 +85,12 @@ export default function EvaluationPage() {
     return;
   }
 
-  const totalPercentage = requirements.reduce((sum, req) => sum + (req.percentage || 0), 0);
+ const totalPercentage = requirements.reduce((sum, req) => {
+ // `completed` талбарт таны үнэлгээ орж байна, тиймээс тэрний нийлбэрийг авъя
+  const c = Number(req.completed);
+  return sum + (isNaN(c) ? 0 : c);
+ }, 0);
+
 
   setSubmitLoading(true);
   try {
@@ -324,32 +331,33 @@ export default function EvaluationPage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
-                          {requirementsArray.map((req: any, index: number) => (
-                            <tr key={req.id || index} className="hover:bg-gray-50">
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{req.field1}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">{req.field2}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  max="100"
-                                  className="border border-gray-300 rounded px-2 py-1 w-24"
-                                  value={req.completed || ''}
-                                  onChange={(e) => handleRequirementChange(index, e.target.value)}
-                                  disabled={task.status !== 'completed'}
-                                  placeholder="0-100"
-                                />
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
+  {requirements.map((req, idx) => (
+    <tr key={idx} className="hover:bg-gray-50">
+      <td className="px-6 py-4 text-sm text-gray-700">{req.title}</td>
+      <td className="px-6 py-4 text-sm text-gray-700">{req.percentage}%</td>
+      <td className="px-6 py-4 text-sm text-gray-700">
+        <input
+          type="number"
+          min={0}
+          max={100}
+          className="border rounded px-2 py-1 w-24"
+          value={req.completed ?? ''}            
+          onChange={(e) => handleRequirementChange(idx, Number(e.target.value))}
+          disabled={task?.status !== 'completed'}
+          placeholder="0–100"
+        />
+      </td>
+    </tr>
+  ))}
+</tbody>
+
                       </table>
                       <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                         <div className="flex justify-between items-center mb-4">
                           <span className="text-lg font-medium text-gray-700">Нийт үнэлгээ:</span>
                           
                           <span className="text-xl font-bold text-blue-600">
-                            {requirementsArray.reduce((sum, req) => sum + (parseInt(req.completed) || 0), 0)}%
+                           {requirementsArray.reduce((sum, req) => sum + (Number(req.completed) || 0), 0)}%
                           </span>
                         </div>
                         

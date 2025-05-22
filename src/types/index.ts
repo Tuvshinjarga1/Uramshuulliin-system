@@ -30,6 +30,7 @@ export interface Task {
   completedAt?: Timestamp | Date;
   evaluated?: boolean;
   evaluatedAt?: Timestamp | Date;
+  totalPercentage?: number;
   rating?: number;
   fileUrl?: string;
   fileName?: string;
